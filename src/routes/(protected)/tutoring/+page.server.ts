@@ -12,6 +12,7 @@ import {
 } from "$lib/db_types";
 import handleError from "$lib/handleError";
 import { isOnCommittee } from "$lib/isOnCommittee";
+import { sendNewTutoringRequestAlert } from "$lib/server/slack";
 import { z } from "zod";
 import { zod } from 'sveltekit-superforms/adapters';
 
@@ -82,9 +83,15 @@ export const actions: Actions = {
 		}
 
 		try {
-			await locals.pb
+			const tutoringRequest = await locals.pb
 				.collection("tutoringRequests")
 				.create({ ...requestTutoringForm.data, tutee: locals.user.id });
+
+			try {
+				await sendNewTutoringRequestAlert(tutoringRequest as RecievedTutoringRequest);
+			} catch (slackError: unknown) {
+				console.error("Failed to send the new tutoring request to Slack.", slackError);
+			}
 		} catch (caught: unknown) {
 			console.error(caught);
 			return handleError(caught, requestTutoringForm);
