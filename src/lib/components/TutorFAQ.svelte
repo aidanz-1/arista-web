@@ -35,7 +35,7 @@
 			<h3 class="h3">What are my credit requirements?</h3>
 		</svelte:fragment>
 		<svelte:fragment slot="content">
-			<p>ARISTA's credit requirements differ based on grade and committee affiliation. Credits can change yearly based on member breakdown, tutoring request history, and other factors; the Executive Committee has the discretion to change requirements and will inform of changes with enough notice. Here are the requirements for the 2024-2025 school year:</p>
+			<p>ARISTA's credit requirements differ based on grade and committee affiliation. Credits can change yearly based on member breakdown, tutoring request history, and other factors; the Executive Committee has the discretion to change requirements and will inform of changes with enough notice. Here are the requirements for the 2026-2027 school year:</p>
 		</svelte:fragment>
 	</AccordionItem>
 	<AccordionItem>
