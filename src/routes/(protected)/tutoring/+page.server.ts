@@ -12,11 +12,18 @@ import {
 } from "$lib/db_types";
 import handleError from "$lib/handleError";
 import { isOnCommittee } from "$lib/isOnCommittee";
-import { sendNewTutoringRequestAlert } from "$lib/server/slack";
+import {
+	deleteTutoringRequestAlert,
+	sendNewTutoringRequestAlert,
+	updateTutoringRequestAlert
+} from "$lib/server/slack";
 import { z } from "zod";
 import { zod } from 'sveltekit-superforms/adapters';
 
-let RequestTutoringSchema = TutoringRequestSchema.omit({ tutee: true }); // don't include tutee in form;
+let RequestTutoringSchema = TutoringRequestSchema.omit({
+	tutee: true,
+	slack_message_ts: true
+}); // don't include server-managed fields in the form;
 let FinishTutoringSessionSchema = z.object({
 	durationInHours: z.string().refine(v => { let n = Number(v); return !isNaN(n) && v?.length > 0; }, { message: "Invalid number. Please enter something similar to: 1, 2, 3, etc." })
 });
@@ -82,17 +89,25 @@ export const actions: Actions = {
 			return fail(400, { requestTutoringForm });
 		}
 
+		let slackMessageTs: string | undefined;
 		try {
-			const tutoringRequest = await locals.pb
-				.collection("tutoringRequests")
-				.create({ ...requestTutoringForm.data, tutee: locals.user.id });
+			slackMessageTs = await sendNewTutoringRequestAlert(requestTutoringForm.data);
+		} catch (slackError: unknown) {
+			console.error("Failed to send the new tutoring request to Slack.", slackError);
+		}
 
-			try {
-				await sendNewTutoringRequestAlert(tutoringRequest as RecievedTutoringRequest);
-			} catch (slackError: unknown) {
-				console.error("Failed to send the new tutoring request to Slack.", slackError);
-			}
+		try {
+			await locals.pb.collection("tutoringRequests").create({
+				...requestTutoringForm.data,
+				tutee: locals.user.id,
+				...(slackMessageTs ? { slack_message_ts: slackMessageTs } : {})
+			});
 		} catch (caught: unknown) {
+			try {
+				await deleteTutoringRequestAlert(slackMessageTs);
+			} catch (slackError: unknown) {
+				console.error("Failed to remove the Slack alert after request creation failed.", slackError);
+			}
 			console.error(caught);
 			return handleError(caught, requestTutoringForm);
 		}
@@ -128,6 +143,12 @@ export const actions: Actions = {
 			}
 
 			await locals.pb.collection("tutoringRequests").delete(tutoring_request_id);
+
+			try {
+				await updateTutoringRequestAlert(tutoringRequest, "cancelled");
+			} catch (slackError: unknown) {
+				console.error("Failed to mark the deleted tutoring request as cancelled in Slack.", slackError);
+			}
 		} catch (caught: unknown) {
 			console.error(caught);
 			throw caught;
@@ -202,6 +223,12 @@ export const actions: Actions = {
 
 				// update the tutoring request
 				await locals.pb.collection("tutoringRequests").update(tutoring_request_id, { isClaimed: true });
+
+				try {
+					await updateTutoringRequestAlert(tutoringRequest, "claimed");
+				} catch (slackError: unknown) {
+					console.error("Failed to mark the tutoring request as claimed in Slack.", slackError);
+				}
 			} catch (caught: unknown) {
 				console.error(caught);
 				throw caught;
@@ -236,6 +263,19 @@ export const actions: Actions = {
 				error(400, "Completed sessions cannot be cancelled.");
 			}
 
+			let tutoringRequest: RecievedTutoringRequest | undefined;
+			if (tutoringSession.tutoringRequest) {
+				try {
+					tutoringRequest = structuredClone(
+						(await locals.pb
+							.collection("tutoringRequests")
+							.getOne(tutoringSession.tutoringRequest)) as unknown
+					) as RecievedTutoringRequest;
+				} catch (caught: unknown) {
+					console.error("Failed to load the tutoring request before cancelling its session.", caught);
+				}
+			}
+
 			await locals.pb.collection("tutoringSessions").delete(tutoring_session_id);
 
 			if (tutoringSession.tutoringRequest) {
@@ -245,6 +285,17 @@ export const actions: Actions = {
 						.update(tutoringSession.tutoringRequest, { isClaimed: false });
 				} else {
 					await locals.pb.collection("tutoringRequests").delete(tutoringSession.tutoringRequest);
+				}
+
+				if (tutoringRequest) {
+					try {
+						await updateTutoringRequestAlert(
+							tutoringRequest,
+							isTutor ? "available" : "cancelled"
+						);
+					} catch (slackError: unknown) {
+						console.error("Failed to update the cancelled tutoring session in Slack.", slackError);
+					}
 				}
 			}
 		} catch (caught: unknown) {

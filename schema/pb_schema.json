@@ -107,14 +107,28 @@
         "presentable": false,
         "unique": false,
         "options": {}
+      },
+      {
+        "system": false,
+        "id": "slackmsgts01",
+        "name": "slack_message_ts",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": 64,
+          "pattern": ""
+        }
       }
     ],
     "indexes": [],
-    "listRule": "@request.auth.id != \"\" ",
-    "viewRule": "@request.auth.id != \"\" ",
-    "createRule": "@request.auth.id != \"\" && @request.auth.is_tutee = true",
-    "updateRule": "@request.auth.id != \"\" && @request.auth.is_tutee = false && @request.data.isClaimed:isset = true && @request.data.tutee:isset = false && @request.data.topic:isset = false && @request.data.class:isset = false && @request.data.subject:isset = false && @request.data.teacher:isset = false && @request.data.general_time:isset = false  && @request.data.id:isset = false ",
-    "deleteRule": "@request.auth.id != \"\" && (@request.auth.id = tutee.id || @request.auth.committees ?~ \"operations\" || @request.auth.committees ?~ \"admin\")",
+    "listRule": "@request.auth.id != \"\" && (tutee = @request.auth.id || @request.auth.is_tutee = false)",
+    "viewRule": "@request.auth.id != \"\" && (tutee = @request.auth.id || @request.auth.is_tutee = false)",
+    "createRule": "@request.auth.id != \"\" && @request.auth.is_tutee = true && tutee = @request.auth.id",
+    "updateRule": "@request.auth.id != \"\" && @request.auth.is_tutee = false && @request.body.isClaimed:isset = true && @request.body.tutee:isset = false && @request.body.topic:isset = false && @request.body.class:isset = false && @request.body.teacher:isset = false && @request.body.general_time:isset = false && @request.body.slack_message_ts:isset = false && @request.body.id:isset = false",
+    "deleteRule": "(@request.auth.id = tutee.id || @request.auth.committees ?~ \"operations\" || @request.auth.committees ?~ \"admin\")",
     "options": {}
   },
     {

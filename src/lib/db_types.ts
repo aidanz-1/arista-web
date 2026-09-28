@@ -63,7 +63,8 @@ export const TutoringRequestSchema = z.object({
 	topic: z.string().min(2).max(64),
 	tutee: z.string().min(2).max(64),
 	general_time: z.string().min(2).max(512),
-	isClaimed: z.boolean().default(false)
+	isClaimed: z.boolean().default(false),
+	slack_message_ts: z.string().max(64).optional()
 });
 
 export const TutoringSessionSchema = z.object({
