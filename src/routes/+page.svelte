@@ -43,15 +43,15 @@
 				Request academic support through individual tutoring
 				<a class="anchor" href="/tutoring">here</a>.
 			</p>
+			{#if $currentUser}
+				<p class="text-sm opacity-60 mt-2">
+					Issues? Contact Mekot, VP of Web Dev, at
+					<a class="anchor" href="mailto:stuyaristanycweb@gmail.com">stuyaristanycweb@gmail.com</a>
+					or
+					<a class="anchor" href="mailto:msarder70@stuy.edu">msarder70@stuy.edu</a>.
+				</p>
+			{/if}
 		</hgroup>
-		{#if $currentUser}
-			<p class="text-sm opacity-75">
-				If you have any issues, contact Mekot, VP of Web Dev, at
-				<a class="anchor" href="mailto:stuyaristanycweb@gmail.com">stuyaristanycweb@gmail.com</a>
-				or
-				<a class="anchor" href="mailto:msarder70@stuy.edu">msarder70@stuy.edu</a>.
-			</p>
-		{/if}
 	{/if}
 	{#if !$currentUser}
 		<h3 class="h3">
