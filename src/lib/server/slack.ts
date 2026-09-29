@@ -60,14 +60,27 @@ function buildTutoringRequestBlocks(
 		},
 		{
 			type: "section",
-			text: {
-				type: "mrkdwn",
-				text:
-					status === "available"
-						? `${statusText}\n<${TUTORING_PAGE_URL}|View tutoring requests →>`
-						: statusText
-			}
-		}
+			text: { type: "mrkdwn", text: statusText }
+		},
+		...(status === "available"
+			? [
+					{
+						type: "actions",
+						elements: [
+							{
+								type: "button",
+								text: {
+									type: "plain_text",
+									text: "View tutoring requests",
+									emoji: true
+								},
+								url: TUTORING_PAGE_URL,
+								style: "primary"
+							}
+						]
+					}
+				]
+			: [])
 	];
 }
 
