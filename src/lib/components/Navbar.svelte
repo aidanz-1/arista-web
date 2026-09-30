@@ -105,11 +105,6 @@
 				{/if}
 			</div>
 			
-			{#if !$currentUser || ($currentUser && $currentUser.is_tutee)}
-				<a href="/apply" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md font-medium flex items-center h-10">
-					Apply <span class="hidden xl:inline">to ARISTA</span>
-				</a>
-			{/if}
 		</div>
 	</svelte:fragment>
 	<svelte:fragment slot="trail">
@@ -278,15 +273,6 @@
 						</div>
 					{/if}
 				</div>
-				{#if !$currentUser || ($currentUser && $currentUser.is_tutee)}
-				<a
-						href="/apply"
-						class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-						on:click={closeMobileMenu}
-					>
-						Apply to ARISTA
-					</a>
-				{/if}
 			</div>
 		</nav>
 
