@@ -66,31 +66,4 @@
 		</div>
 	</section>
 
-	<!-- Freshman Teacher Form -->
-	<section class="card p-6 space-y-4">
-		<div class="flex items-center gap-3">
-			<div>
-				<h2 class="h2">Freshman Teacher Form</h2>
-				<p class="text-surface-600 dark:text-surface-400">Important information and guidelines for teachers</p>
-			</div>
-		</div>
-		<!-- Hide iframe on mobile, show on desktop -->
-		<div class="hidden md:block w-full max-w-2xl mx-auto" style="height: 500px;">
-			<iframe 
-				src="https://docs.google.com/document/d/16bO9caNPWnIHgfo1tOg5JCfOqgCGYPOKSO5YPZmb27k/preview" 
-				class="w-full h-full rounded-lg"
-				title="Freshman Teacher Form"
-			></iframe>
-		</div>
-		<div class="flex justify-center">
-			<a 
-				href="https://docs.google.com/document/d/16bO9caNPWnIHgfo1tOg5JCfOqgCGYPOKSO5YPZmb27k/edit?usp=sharing" 
-				target="_blank"
-				class="btn variant-filled-primary"
-			>
-				<span class="md:hidden">View Form</span>
-				<span class="hidden md:inline">Open in Google Docs</span>
-			</a>
-		</div>
-	</section>
 </main>
