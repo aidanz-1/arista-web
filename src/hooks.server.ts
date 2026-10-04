@@ -67,6 +67,15 @@ export const handle: Handle = async ({ event, resolve }) => {
 		error(403, "Tutee accounts cannot access the events area.");
 	}
 
+	if (
+		(event.url.pathname.startsWith("/leaderboard") ||
+			event.url.pathname.startsWith("/api/leaderboard")) &&
+		event.locals.user &&
+		!event.locals.user.member
+	) {
+		error(403, "The leaderboard is for ARISTA members.");
+	}
+
 	if (event.url.pathname.startsWith("/apply") && event.locals.user && event.locals.user.member) {
 		error(403, "Current ARISTA members cannot access the application page.");
 	}
