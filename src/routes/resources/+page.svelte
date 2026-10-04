@@ -205,6 +205,8 @@
 		max-width: 100%;
 		padding: 0.3rem;
 		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
 		border: 1px solid var(--line);
 		border-radius: var(--radius-pill);
 		background: var(--surface-sunken);

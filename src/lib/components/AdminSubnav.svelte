@@ -31,6 +31,8 @@
 		gap: 0.25rem;
 		margin-bottom: 1.75rem;
 		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
 		border-bottom: 1px solid var(--line);
 	}
 	.admin-subnav a {

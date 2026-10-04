@@ -1056,6 +1056,8 @@
 		gap: 0.25rem;
 		margin-bottom: 1.5rem;
 		overflow-x: auto;
+		overflow-y: hidden;
+		overscroll-behavior-x: contain;
 		border-bottom: 1px solid var(--line);
 	}
 	.tabs button {

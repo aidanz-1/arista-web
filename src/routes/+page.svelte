@@ -61,6 +61,19 @@
 			</div>
 		</header>
 
+		{#if data?.hasContactInfo === false}
+			<section class="tutee__contact" aria-labelledby="member-contact-title">
+				<div>
+					<h2 id="member-contact-title">Add your contact info</h2>
+					<p>
+						Tutees see it once you claim their request, so they can reach you to plan a session. A
+						phone number, Instagram, or Discord works.
+					</p>
+				</div>
+				<a class="btn btn-primary" href="/settings#about-you-title">Add contact info</a>
+			</section>
+		{/if}
+
 		<SemesterCreditPanel
 			credits={data.credits ?? []}
 			user={$currentUser}

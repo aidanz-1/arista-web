@@ -8,6 +8,7 @@ import type {
 	RecievedUser
 } from "$lib/db_types.js";
 import { activeSemesterCreditTotals } from "$lib/creditSemesters";
+import calculateTotalStrikeWeight from "$lib/calculateTotalStrikeWeight";
 import type { LayoutServerLoad } from "./$types";
 
 const DIRECTORY_PAGE_SIZES = [25, 50, 100, 150] as const;
@@ -28,6 +29,19 @@ function directoryPageSize(value: string | null) {
 		? parsed
 		: DEFAULT_DIRECTORY_PAGE_SIZE;
 }
+
+// Columns the People table can sort by. These map straight to user fields;
+// the computed ones are worked out from credits, strikes, and emails.
+const DATABASE_SORTS: Record<string, string> = {
+	name: "name",
+	type: "member",
+	committees: "committees",
+	homeroom: "homeroom",
+	class: "graduationYear",
+	osis: "osis"
+};
+const COMPUTED_SORTS = ["email", "event", "tutoring", "other", "strikes"] as const;
+type ComputedSort = (typeof COMPUTED_SORTS)[number];
 
 function chunks<T>(items: T[], size: number) {
 	return Array.from({ length: Math.ceil(items.length / size) }, (_, index) =>
@@ -83,73 +97,53 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 		filters.push(`(${searchTerms.join(" || ")})`);
 	}
 
-	const userQuery = { sort: "-created", filter: filters.join(" && "), requestKey: null };
-	let userPage = insufficientOnly
+	// Sorting: plain fields sort in the database; credit totals, strikes, and
+	// email are computed here, so those sorts load the whole filtered list first.
+	const sortKey = url.searchParams.get("sort") ?? "";
+	const sortDir = url.searchParams.get("dir") === "desc" ? "desc" : "asc";
+	const databaseSort = DATABASE_SORTS[sortKey];
+	const computedSort = COMPUTED_SORTS.includes(sortKey as ComputedSort)
+		? (sortKey as ComputedSort)
+		: undefined;
+	const sort = databaseSort ? `${sortDir === "desc" ? "-" : ""}${databaseSort},name` : "-created";
+	const loadEveryone = insufficientOnly || Boolean(computedSort);
+
+	const userQuery = { sort, filter: filters.join(" && "), requestKey: null };
+	let userPage = loadEveryone
 		? undefined
 		: await locals.pb.collection("users").getList(page, perPage, userQuery);
 	// A page past the end (from an old or edited link) shows the real last page.
 	if (userPage && page > userPage.totalPages && userPage.totalPages > 0) {
 		userPage = await locals.pb.collection("users").getList(userPage.totalPages, perPage, userQuery);
 	}
-	const candidateUsers = insufficientOnly
+	const candidateUsers = loadEveryone
 		? (structuredClone(
 				(await locals.pb.collection("users").getFullList(userQuery)) as unknown
 			) as RecievedUser[])
 		: (structuredClone(userPage?.items as unknown) as RecievedUser[]);
 
 	const candidateIds = candidateUsers.map((user) => user.id);
-	const candidateCreditGroups = candidateIds.length
-		? await Promise.all(
-				chunks(candidateIds, 50).map((ids) =>
-					locals.pb.collection("credits").getFullList({
-						filter: ids.map((id) => `user="${id}"`).join(" || "),
-						fields: "user,type,credits,semester",
-						requestKey: null
-					})
-				)
-			)
-		: [];
-	const credits = candidateCreditGroups.flat();
+	const fetchFor = (collection: string, field: string, fields: string) =>
+		candidateIds.length
+			? Promise.all(
+					chunks(candidateIds, 50).map((ids) =>
+						locals.pb.collection(collection).getFullList({
+							filter: ids.map((id) => `${field}="${id}"`).join(" || "),
+							fields,
+							requestKey: null
+						})
+					)
+				).then((groups) => groups.flat())
+			: Promise.resolve([]);
+	const [credits, strikes, publicUsers] = await Promise.all([
+		fetchFor("credits", "user", "user,type,credits,semester,created"),
+		fetchFor("strikes", "strikedUser", "strikedUser,weight"),
+		fetchFor("publicUsers", "id", "id,email")
+	]);
 	const creditsByUser = new Map<string, ExpandedCredit[]>();
 	for (const credit of credits as unknown as ExpandedCredit[]) {
 		creditsByUser.set(credit.user, [...(creditsByUser.get(credit.user) ?? []), credit]);
 	}
-
-	const totalsFor = (user: RecievedUser) =>
-		activeSemesterCreditTotals(
-			creditsByUser.get(user.id) ?? [],
-			user,
-			serializedSemesters,
-			serializedRequirements
-		);
-	const matchingUsers = insufficientOnly
-		? candidateUsers.filter((user) =>
-				Object.values(totalsFor(user)).some((total) => total.have < total.required)
-			)
-		: candidateUsers;
-	const totalItems = insufficientOnly ? matchingUsers.length : (userPage?.totalItems ?? 0);
-	const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
-	const users = insufficientOnly
-		? matchingUsers.slice((page - 1) * perPage, page * perPage)
-		: matchingUsers;
-
-	const userIds = users.map((user) => user.id);
-	const strikeFilter = userIds.map((id) => `strikedUser="${id}"`).join(" || ");
-	const publicUserFilter = userIds.map((id) => `id="${id}"`).join(" || ");
-	const [strikes, publicUsers] = userIds.length
-		? await Promise.all([
-				locals.pb.collection("strikes").getFullList({
-					filter: strikeFilter,
-					fields: "strikedUser,weight",
-					requestKey: null
-				}),
-				locals.pb.collection("publicUsers").getFullList({
-					filter: publicUserFilter,
-					fields: "id,name,email",
-					requestKey: null
-				})
-			])
-		: [[], []];
 	const strikesByUser = new Map<string, RecievedStrike[]>();
 	for (const strike of strikes as unknown as RecievedStrike[]) {
 		strikesByUser.set(strike.strikedUser, [
@@ -161,7 +155,44 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 		(publicUsers as unknown as RecievedPublicUserData[]).map((user) => [user.id, user.email])
 	);
 
-	let directoryUsers = users.map(
+	const totalsFor = (user: RecievedUser) =>
+		activeSemesterCreditTotals(
+			creditsByUser.get(user.id) ?? [],
+			user,
+			serializedSemesters,
+			serializedRequirements
+		);
+	let matchingUsers = insufficientOnly
+		? candidateUsers.filter((user) =>
+				Object.values(totalsFor(user)).some((total) => total.have < total.required)
+			)
+		: candidateUsers;
+	if (computedSort) {
+		const valueOf = (user: RecievedUser): string | number =>
+			computedSort === "email"
+				? (emailByUser.get(user.id) ?? "").toLowerCase()
+				: computedSort === "strikes"
+					? calculateTotalStrikeWeight(strikesByUser.get(user.id) ?? [])
+					: totalsFor(user)[computedSort].have;
+		const direction = sortDir === "desc" ? -1 : 1;
+		matchingUsers = [...matchingUsers].sort((a, b) => {
+			const left = valueOf(a);
+			const right = valueOf(b);
+			const order =
+				typeof left === "number" && typeof right === "number"
+					? left - right
+					: String(left).localeCompare(String(right));
+			return order * direction || a.name.localeCompare(b.name);
+		});
+	}
+	const totalItems = loadEveryone ? matchingUsers.length : (userPage?.totalItems ?? 0);
+	const totalPages = Math.max(1, Math.ceil(totalItems / perPage));
+	const shownPage = Math.min(page, totalPages);
+	const users = loadEveryone
+		? matchingUsers.slice((shownPage - 1) * perPage, shownPage * perPage)
+		: matchingUsers;
+
+	const directoryUsers = users.map(
 		(user) =>
 			({
 				...user,
@@ -177,11 +208,12 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 		creditSemesters: serializedSemesters,
 		creditRequirements: serializedRequirements,
 		pagination: {
-			page: Math.min(page, totalPages),
+			page: shownPage,
 			perPage,
 			totalItems,
 			totalPages
 		},
-		filters: { search, membersOnly, insufficientOnly, graduationYears }
+		filters: { search, membersOnly, insufficientOnly, graduationYears },
+		sorting: { key: databaseSort || computedSort ? sortKey : "", dir: sortDir }
 	};
 };

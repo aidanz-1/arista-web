@@ -4,6 +4,7 @@
 	import type { RecievedUser } from "$lib/db_types";
 	import type { PageData } from "./$types";
 	import { goto } from "$app/navigation";
+	import { page } from "$app/state";
 
 	interface Props {
 		data: PageData;
@@ -31,8 +32,44 @@
 		new Date().getMonth() >= 6 ? new Date().getFullYear() + 1 : new Date().getFullYear();
 	const yearOptions = [-1, 0, 1, 2, 3].map((offset) => schoolYearEnd + offset);
 
+	let sorting = $derived(data.sorting ?? { key: "", dir: "asc" });
+	// Text columns sort A to Z first; number columns sort highest first.
+	const sortColumns = [
+		{ key: "name", label: "Name", numeric: false },
+		{ key: "email", label: "Email", numeric: false },
+		{ key: "type", label: "Type", numeric: false },
+		{ key: "event", label: "Events", numeric: true },
+		{ key: "tutoring", label: "Tutoring", numeric: true },
+		{ key: "other", label: "Other", numeric: true },
+		{ key: "strikes", label: "Strikes", numeric: true },
+		{ key: "committees", label: "Committees", numeric: false },
+		{ key: "homeroom", label: "Homeroom", numeric: false },
+		{ key: "class", label: "Class", numeric: true },
+		{ key: "osis", label: "OSIS", numeric: true }
+	] as const;
+	function nextSort(key: string, numeric: boolean) {
+		if (sorting.key === key) return { key, dir: sorting.dir === "asc" ? "desc" : "asc" };
+		return { key, dir: numeric ? "desc" : "asc" };
+	}
+	function sortHref(key: string, dir: string) {
+		const params = new URL(page.url).searchParams;
+		params.delete("page");
+		if (key) {
+			params.set("sort", key);
+			params.set("dir", dir);
+		} else {
+			params.delete("sort");
+			params.delete("dir");
+		}
+		return `/admin?${params}`;
+	}
+
 	function pageHref(page: number) {
 		const params = new URLSearchParams();
+		if (sorting.key) {
+			params.set("sort", sorting.key);
+			params.set("dir", sorting.dir);
+		}
 		if (filters.search) params.set("search", filters.search);
 		if (filters.membersOnly) params.set("members", "true");
 		if (filters.insufficientOnly) params.set("insufficient", "true");
@@ -209,6 +246,31 @@
 				</div>
 			</details>
 		</div>
+		{#if sorting.key}
+			<input type="hidden" name="sort" value={sorting.key} />
+			<input type="hidden" name="dir" value={sorting.dir} />
+		{/if}
+		<label class="filters__limit filters__sort">
+			<span>Sort by</span>
+			<select
+				value={sorting.key ? `${sorting.key}:${sorting.dir}` : ""}
+				onchange={(event) => {
+					const [key, dir] = event.currentTarget.value.split(":");
+					goto(sortHref(key, dir ?? "asc"), { noScroll: true, keepFocus: true });
+				}}
+			>
+				<option value="">Newest accounts</option>
+				{#each sortColumns as column (column.key)}
+					{#if column.numeric}
+						<option value="{column.key}:desc">{column.label}, highest first</option>
+						<option value="{column.key}:asc">{column.label}, lowest first</option>
+					{:else}
+						<option value="{column.key}:asc">{column.label}, A to Z</option>
+						<option value="{column.key}:desc">{column.label}, Z to A</option>
+					{/if}
+				{/each}
+			</select>
+		</label>
 		<label class="filters__limit">
 			<span>Show</span>
 			<select name="limit" value={String(pagination.perPage)} onchange={submitFilters}>
@@ -287,17 +349,32 @@
 				<table class="table table-hover">
 					<thead>
 						<tr>
-							<th scope="col">Name</th>
-							<th scope="col">Email</th>
-							<th scope="col">Type</th>
-							<th scope="col" class="num">Events</th>
-							<th scope="col" class="num">Tutoring</th>
-							<th scope="col" class="num">Other</th>
-							<th scope="col" class="num">Strikes</th>
-							<th scope="col">Committees</th>
-							<th scope="col">Homeroom</th>
-							<th scope="col" class="num">Class</th>
-							<th scope="col" class="num">OSIS</th>
+							{#each sortColumns as column (column.key)}
+								{@const next = nextSort(column.key, column.numeric)}
+								<th
+									scope="col"
+									class:num={column.numeric && column.key !== "class"}
+									aria-sort={sorting.key === column.key
+										? sorting.dir === "asc"
+											? "ascending"
+											: "descending"
+										: undefined}
+								>
+									<a
+										class="sort"
+										class:is-active={sorting.key === column.key}
+										href={sortHref(next.key, next.dir)}
+										data-sveltekit-noscroll
+										>{column.label}<span class="sort__arrow" aria-hidden="true"
+											>{sorting.key === column.key
+												? sorting.dir === "asc"
+													? "↑"
+													: "↓"
+												: "↕"}</span
+										></a
+									>
+								</th>
+							{/each}
 						</tr>
 					</thead>
 					<tbody>
@@ -558,6 +635,27 @@
 		color: var(--danger);
 	}
 
+	.sort {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		color: inherit;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.sort:hover,
+	.sort.is-active {
+		color: var(--ink);
+	}
+	.sort__arrow {
+		color: var(--muted);
+		font-size: 0.8em;
+		opacity: 0.55;
+	}
+	.sort.is-active .sort__arrow {
+		color: var(--flame);
+		opacity: 1;
+	}
 	.people-cards {
 		display: none;
 		gap: 0.75rem;
