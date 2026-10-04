@@ -4,6 +4,7 @@
 	import { page } from "$app/state";
 	import { accountThemeStorageKey, activeThemeOverride, publicThemePreference } from "$lib/theme";
 	import { invalidateAll } from "$app/navigation";
+	import { tick } from "svelte";
 	import { fly, fade } from "svelte/transition";
 	import { cubicOut } from "svelte/easing";
 	import { displayName, firstName, initials } from "$lib/displayName";
@@ -73,6 +74,20 @@
 		mobileMenuOpen = false;
 		menuButton?.focus();
 	}
+
+	// While the menu is open, the page behind it can't be focused or clicked,
+	// and keyboard focus starts on the first menu link.
+	$effect(() => {
+		if (!mobileMenuOpen) return;
+		const background = [...document.querySelectorAll<HTMLElement>(".app-shell > main, footer")];
+		background.forEach((element) => (element.inert = true));
+		void tick().then(() =>
+			document
+				.querySelector<HTMLElement>("#mobile-navigation a, #mobile-navigation button")
+				?.focus()
+		);
+		return () => background.forEach((element) => (element.inert = false));
+	});
 
 	function onWindowKeydown(event: KeyboardEvent) {
 		if (event.key === "Escape" && mobileMenuOpen) closeAndRestoreFocus();

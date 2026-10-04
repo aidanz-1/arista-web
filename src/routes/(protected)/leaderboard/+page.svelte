@@ -5,6 +5,7 @@
 		RecievedPublicUserData
 	} from "$lib/db_types";
 	import { displayName, initials } from "$lib/displayName";
+	import { roundCredits } from "$lib/calculateCredits";
 
 	interface Props {
 		data: {
@@ -57,7 +58,7 @@
 		const totals = new Map<string, number>();
 		for (const credit of data.allCredits) {
 			if (credit.type !== creditType || !semesterIds.includes(credit.semester ?? "")) continue;
-			totals.set(credit.user, (totals.get(credit.user) ?? 0) + credit.credits);
+			totals.set(credit.user, roundCredits((totals.get(credit.user) ?? 0) + credit.credits));
 		}
 		return totals;
 	});

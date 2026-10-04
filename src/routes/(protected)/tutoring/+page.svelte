@@ -3,7 +3,8 @@
 	import { run } from "svelte/legacy";
 
 	import { enhance } from "$app/forms";
-	import { invalidateAll } from "$app/navigation";
+	import { invalidateAll, replaceState } from "$app/navigation";
+	import { page } from "$app/state";
 	import ErrorComponent from "$lib/components/ErrorComponent.svelte";
 	import InputField from "$lib/components/InputField.svelte";
 	import type {
@@ -78,12 +79,28 @@
 
 	$effect(() => {
 		if (initialTutoringTabResolved || !$currentUser) return;
-		activeTutoringTab = data.tutoringSessions.length
-			? "sessions"
-			: $currentUser.member
-				? "queue"
-				: "request";
+		const requested = page.url.searchParams.get("tab");
+		const allowed: TutoringTab[] = $currentUser.member
+			? ["sessions", "request", "queue"]
+			: ["sessions", "request"];
+		activeTutoringTab = allowed.includes(requested as TutoringTab)
+			? (requested as TutoringTab)
+			: data.tutoringSessions.length
+				? "sessions"
+				: $currentUser.member
+					? "queue"
+					: "request";
 		initialTutoringTabResolved = true;
+	});
+
+	// Keep the open tab in the URL so a refresh or shared link opens the same tab.
+	$effect(() => {
+		if (!initialTutoringTabResolved) return;
+		const tab = activeTutoringTab;
+		const url = new URL(page.url);
+		if (url.searchParams.get("tab") === tab) return;
+		url.searchParams.set("tab", tab);
+		replaceState(url, page.state);
 	});
 
 	$effect(() => {

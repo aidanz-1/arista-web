@@ -16,7 +16,13 @@ import handleError, { handleGenericError } from "$lib/handleError";
 
 function parseCreditAmount(value: unknown) {
 	const amount = typeof value === "number" ? value : Number(value);
-	return Number.isFinite(amount) && amount > 0 && amount <= 100 ? amount : null;
+	// At most two decimal places, like every other credit amount.
+	return Number.isFinite(amount) &&
+		amount > 0 &&
+		amount <= 100 &&
+		Math.abs(amount * 100 - Math.round(amount * 100)) < 1e-9
+		? amount
+		: null;
 }
 
 async function ensureEventCommitteeMember(locals: App.Locals) {

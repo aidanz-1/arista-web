@@ -8,7 +8,9 @@
 	import AuthLayout from "$lib/components/AuthLayout.svelte";
 	import { page } from "$app/state";
 
-	let message: string = $derived(page.url.searchParams.get("message") ?? "");
+	let message: string = $derived(
+		(page.form?.message as string | undefined) ?? page.url.searchParams.get("message") ?? ""
+	);
 
 	interface Props {
 		data: PageData;

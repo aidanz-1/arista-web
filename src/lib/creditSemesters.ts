@@ -5,7 +5,7 @@ import type {
 	RecievedCreditSemester,
 	RecievedUser
 } from "$lib/db_types";
-import { calculateCredits, calculateRequiredCredits } from "$lib/calculateCredits";
+import { calculateCredits, calculateRequiredCredits, roundCredits } from "$lib/calculateCredits";
 
 export const creditCategories = ["event", "tutoring", "other"] as const;
 export type CreditCategory = (typeof creditCategories)[number];
@@ -36,7 +36,7 @@ export function creditSummaryForSemester(
 			: 0;
 		const previousEarned = calculateCredits(previousCredits, type);
 		const rollover = previousSemester
-			? Math.max(0, previousEarned - previousRequired) * semester.rolloverPercent
+			? roundCredits(Math.max(0, previousEarned - previousRequired) * semester.rolloverPercent)
 			: 0;
 
 		return {
@@ -69,7 +69,7 @@ export function activeSemesterCreditTotals(
 	return Object.fromEntries(
 		summary.map((category) => [
 			category.type,
-			{ have: category.earned + category.rollover, required: category.required }
+			{ have: roundCredits(category.earned + category.rollover), required: category.required }
 		])
 	) as SemesterCreditTotals;
 }

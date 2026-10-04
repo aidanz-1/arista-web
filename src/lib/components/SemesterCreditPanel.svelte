@@ -7,6 +7,7 @@
 	} from "$lib/db_types";
 	import { creditSummaryForSemester } from "$lib/creditSemesters";
 	import CreditActivity from "$lib/components/CreditActivity.svelte";
+	import { roundCredits } from "$lib/calculateCredits";
 	interface Props {
 		credits: ExpandedCredit[];
 		user: RecievedUser;
@@ -67,8 +68,8 @@
 
 		<div class="credits__grid">
 			{#each selectedSummary as category (category.type)}
-				{@const total = category.earned + category.rollover}
-				{@const remaining = Math.max(0, category.required - total)}
+				{@const total = roundCredits(category.earned + category.rollover)}
+				{@const remaining = roundCredits(Math.max(0, category.required - total))}
 				{@const percent =
 					category.required === 0 ? 100 : Math.min(100, (total / category.required) * 100)}
 				{@const activity = selectedCredits.filter((credit) => credit.type === category.type)}

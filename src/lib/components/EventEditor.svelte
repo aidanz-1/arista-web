@@ -95,7 +95,7 @@
 	<div class="editor__toggle editor__wide">
 		<div>
 			<strong>Close sign-ups</strong>
-			<p>Members can still see the event, but no one new can join.</p>
+			<p>The event shows as closed. Members can still add themselves if you've asked them to.</p>
 		</div>
 		<SlideToggle
 			name="signupStatus"

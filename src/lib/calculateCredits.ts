@@ -5,6 +5,12 @@ import type {
 	RecievedEvent
 } from "$lib/db_types";
 
+// Adding decimals like 2 + 4.4 + 0.9 gives 7.300000000000001 in floating
+// point, so credit totals are rounded to the hundredths place.
+export function roundCredits(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
 export function calculateCredits(
 	credits: RecievedCredit[] | ExpandedCredit[] | undefined,
 	type: RecievedCredit["type"]
@@ -18,7 +24,7 @@ export function calculateCredits(
 			total += credit.credits;
 		}
 	}
-	return total;
+	return roundCredits(total);
 }
 
 export function calculateCreditsByDate(
@@ -33,7 +39,7 @@ export function calculateCreditsByDate(
 			const createdDate = new Date(c.created);
 			return c.type === type && createdDate >= sinceDate;
 		})
-		.reduce((sum, c) => sum + c.credits, 0);
+		.reduce((sum, c) => roundCredits(sum + c.credits), 0);
 }
 
 function defaultCreditMap(user: any): Record<RecievedCredit["type"], number> {

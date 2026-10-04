@@ -14,8 +14,8 @@
 	} from "$lib/theme";
 	import { navigating } from "$app/state";
 	import { page } from "$app/state";
-	import { onMount } from "svelte";
-	import { afterNavigate } from "$app/navigation";
+	import { onMount, tick } from "svelte";
+	import { afterNavigate, beforeNavigate } from "$app/navigation";
 	import { dev } from "$app/environment";
 	import { inject as injectAnalytics } from "@vercel/analytics";
 	import { injectSpeedInsights } from "@vercel/speed-insights/sveltekit";
@@ -47,12 +47,36 @@
 
 	initializeStores();
 
-	// The page scrolls inside AppShell's main element, so SvelteKit's own scroll
-	// reset never touches it. Start every new page at the top; back/forward
-	// navigations are left alone so pages can restore where you were.
+	// The page scrolls inside AppShell's main element, so the browser's own
+	// scroll handling never touches it. Remember the position for each history
+	// entry, restore it on Back/Forward, and start every new page at the top.
+	const scroller = () => document.querySelector<HTMLElement>(".app-shell > main");
+	const scrollKey = () => `arista-scroll:${history.state?.["sveltekit:history"] ?? "start"}`;
+	// On Back/Forward the browser switches history entries before
+	// beforeNavigate runs, so save under the entry we were actually on.
+	let currentScrollKey = "";
+	beforeNavigate(() => {
+		try {
+			if (currentScrollKey)
+				sessionStorage.setItem(currentScrollKey, String(scroller()?.scrollTop ?? 0));
+		} catch {
+			// Storage can be unavailable (private mode); restoring is a nicety.
+		}
+	});
 	afterNavigate(({ type, to }) => {
-		if (type === "popstate" || to?.url.hash) return;
-		document.querySelector<HTMLElement>(".app-shell > main")?.scrollTo({ top: 0, left: 0 });
+		currentScrollKey = scrollKey();
+		if (type === "popstate") {
+			let top = 0;
+			try {
+				top = Number(sessionStorage.getItem(scrollKey()) ?? 0);
+			} catch {
+				// Fall back to the top.
+			}
+			void tick().then(() => scroller()?.scrollTo({ top, left: 0 }));
+			return;
+		}
+		if (to?.url.hash) return;
+		scroller()?.scrollTo({ top: 0, left: 0 });
 	});
 
 	$effect(() => {

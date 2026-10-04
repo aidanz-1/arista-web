@@ -2,7 +2,7 @@
 	import { untrack } from "svelte";
 	import { preventDefault } from "svelte/legacy";
 	import type { PageData } from "./$types";
-	import { goto, invalidateAll } from "$app/navigation";
+	import { beforeNavigate, goto, invalidateAll } from "$app/navigation";
 	import { page } from "$app/state";
 	import { superForm } from "sveltekit-superforms";
 	import { pb, currentUser } from "$lib/pocketbase";
@@ -15,6 +15,20 @@
 	import { displayName, initials } from "$lib/displayName";
 
 	const modalStore = getModalStore();
+
+	// Typing in the profile or password form marks it unsaved until it's
+	// submitted; leaving the page first asks before throwing the edits away.
+	let unsavedEdits = $state(false);
+	const markUnsaved = () => (unsavedEdits = true);
+	const markSaved = () => (unsavedEdits = false);
+	beforeNavigate(({ cancel, type }) => {
+		if (!unsavedEdits || type === "leave") return;
+		if (!confirm("You have unsaved changes in Settings. Leave without saving?")) cancel();
+		else unsavedEdits = false;
+	});
+	function warnBeforeUnload(event: BeforeUnloadEvent) {
+		if (unsavedEdits) event.preventDefault();
+	}
 	async function logout() {
 		await fetch("/logout", { method: "POST" });
 		pb.authStore.clear();
@@ -87,6 +101,8 @@
 	}
 </script>
 
+<svelte:window onbeforeunload={warnBeforeUnload} />
+
 <svelte:head><title>Settings | ARISTA</title></svelte:head>
 
 <main class="page settings">
@@ -155,6 +171,8 @@
 				<section class="panel" aria-labelledby="about-you-title">
 					<h2 id="about-you-title" class="section-title">About you</h2>
 					<form
+						oninput={markUnsaved}
+						onsubmit={markSaved}
 						method="POST"
 						action="?/update_profile"
 						class="profile-form"
@@ -236,7 +254,14 @@
 
 				<section class="panel" aria-labelledby="password-title">
 					<h2 id="password-title" class="section-title">Change password</h2>
-					<form method="POST" action="?/change_password" class="password-form" use:enhance>
+					<form
+						oninput={markUnsaved}
+						onsubmit={markSaved}
+						method="POST"
+						action="?/change_password"
+						class="password-form"
+						use:enhance
+					>
 						<ErrorComponent errors={$errors} />
 						<InputField
 							form={formObj}

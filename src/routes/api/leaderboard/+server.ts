@@ -1,5 +1,6 @@
 import type { RequestHandler } from "./$types";
 import type { RecievedPublicUserData } from "$lib/db_types";
+import { roundCredits } from "$lib/calculateCredits";
 
 export const GET: RequestHandler = async ({ locals }) => {
 	if (!locals?.user?.id) {
@@ -20,7 +21,7 @@ export const GET: RequestHandler = async ({ locals }) => {
 		for (const credit of credits) {
 			const userId = credit.user;
 			const hours = credit.credits || 0;
-			userTotals.set(userId, (userTotals.get(userId) || 0) + hours);
+			userTotals.set(userId, roundCredits((userTotals.get(userId) || 0) + hours));
 		}
 
 		// convert to array and sort by hours and take top 10

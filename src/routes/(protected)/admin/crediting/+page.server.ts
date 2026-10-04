@@ -12,7 +12,11 @@ const MassCreditorSchema = z.object({ csv_string: z.string() });
 
 const SingleCreditSchema = z.object({
 	user: z.string().min(1),
-	credits: z.coerce.number().positive("Enter a number of credits above 0.").max(100),
+	credits: z.coerce
+		.number()
+		.positive("Enter a number of credits above 0.")
+		.max(100)
+		.multipleOf(0.01, "Use at most two decimal places, like 1.25."),
 	type: z.enum(["event", "tutoring", "other"]),
 	manualExplanation: z.string().trim().min(2, "Add a short reason.").max(256)
 });
