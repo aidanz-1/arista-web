@@ -180,14 +180,26 @@
 							<span class="way__icon" aria-hidden="true">
 								<svg viewBox="0 0 24 24">
 									{#if index === 0}
-										<path
-											d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"
-										/>
-										<path d="M9 8h7M9 11.5h5" />
+										<!-- A tutor and a student -->
+										<circle cx="9" cy="7.5" r="3.5" />
+										<path d="M2.5 20.5v-1a5 5 0 0 1 5-5h3a5 5 0 0 1 5 5v1" />
+										<path d="M16 4.2a3.5 3.5 0 0 1 0 6.6M18.5 14.7a5 5 0 0 1 3 4.6v1.2" />
 									{:else if index === 1}
-										<path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5M10 13h6M10 17h6" />
+										<!-- An open book -->
+										<path
+											d="M12 6.5C10.2 5 7.6 4.5 3 4.5v14c4.6 0 7.2.5 9 2 1.8-1.5 4.4-2 9-2v-14c-4.6 0-7.2.5-9 2Z"
+										/>
+										<path d="M12 6.5v14" />
 									{:else}
-										<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />
+										<!-- A hand holding a heart -->
+										<path d="M11 14h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 16" />
+										<path
+											d="m7 20 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9"
+										/>
+										<path d="m2 15 6 6" />
+										<path
+											d="M19.5 8.5c.7-.7 1.5-1.6 1.5-2.7A2.73 2.73 0 0 0 16 4a2.78 2.78 0 0 0-5 1.8c0 1.2.8 2 1.5 2.8L16 12Z"
+										/>
 									{/if}
 								</svg>
 							</span>
@@ -385,13 +397,21 @@
 	.way__icon {
 		display: grid;
 		place-items: center;
-		width: 3rem;
-		height: 3rem;
+		width: 3.5rem;
+		height: 3.5rem;
 		border-radius: 50%;
 		background: var(--flame-soft);
 		color: var(--flame-text);
 	}
-	.way__icon svg,
+	.way__icon svg {
+		width: 1.85rem;
+		height: 1.85rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 1.6;
+	}
 	.way__action svg {
 		width: 1.35rem;
 		height: 1.35rem;
