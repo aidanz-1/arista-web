@@ -159,6 +159,7 @@
 				/>
 			</picture>
 			<div class="hero__shade" aria-hidden="true"></div>
+			<p class="hero__credit">Photo by Jerry Qiu</p>
 			<div class="hero__inner">
 				<div class="hero__text">
 					<h1 id="home-title">ARISTA</h1>
@@ -265,6 +266,16 @@
 		background:
 			linear-gradient(to top, rgb(0 0 0 / 78%) 0%, rgb(0 0 0 / 45%) 30%, rgb(0 0 0 / 0%) 62%),
 			linear-gradient(to bottom, rgb(0 0 0 / 28%), rgb(0 0 0 / 0%) 18%);
+	}
+	.hero__credit {
+		position: absolute;
+		right: max(var(--gutter, 1rem), env(safe-area-inset-right));
+		bottom: 0.75rem;
+		z-index: 2;
+		margin: 0;
+		color: rgb(255 255 255 / 78%);
+		font-size: var(--text-xs);
+		text-shadow: 0 1px 2px rgb(0 0 0 / 60%);
 	}
 	.hero__inner {
 		position: relative;

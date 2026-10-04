@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { format } from "date-fns";
+	import { page } from "$app/state";
 	import type { ExpandedCredit } from "$lib/db_types";
 
 	interface Props {
@@ -7,6 +8,8 @@
 	}
 
 	let { credits }: Props = $props();
+	// In the admin area, tutoring credits open that session's review page.
+	const inAdmin = $derived(page.url.pathname.startsWith("/admin"));
 
 	// What the credit was for: the event or tutoring session when there is one,
 	// otherwise the explanation the officer typed.
@@ -43,7 +46,13 @@
 		{#each credits as credit (credit.id)}
 			<li>
 				<div>
-					<p class="activity__title">{creditTitle(credit)}</p>
+					<p class="activity__title">
+						{#if inAdmin && credit.session}
+							<a class="text-link" href="/admin/tutoring/{credit.session}">{creditTitle(credit)}</a>
+						{:else}
+							{creditTitle(credit)}
+						{/if}
+					</p>
 					{#if creditNote(credit)}
 						<p class="activity__meta">{creditNote(credit)}</p>
 					{/if}

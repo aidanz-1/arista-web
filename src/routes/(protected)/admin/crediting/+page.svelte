@@ -20,8 +20,7 @@
 	const result = $derived(
 		(page.form ?? {}) as {
 			credited?: string;
-			creditedAmount?: number;
-			creditedType?: string;
+			creditedParts?: { type: string; credits: number }[];
 			creditError?: string;
 		}
 	);
@@ -98,6 +97,8 @@
 									<option value="event">Event</option>
 									<option value="tutoring">Tutoring</option>
 									<option value="other">Other</option>
+									<option value="other_then_event">Other, then events</option>
+									<option value="other_then_tutoring">Other, then tutoring</option>
 								</select>
 							</label>
 							<label class="matches__reason">
@@ -108,8 +109,14 @@
 						</form>
 						{#if result.credited === person.id}
 							<p class="matches__done" role="status">
-								Added {result.creditedAmount}
-								{result.creditedType} credit{result.creditedAmount === 1 ? "" : "s"}.
+								Added {(result.creditedParts ?? [])
+									.map((part) => `${part.credits} ${part.type}`)
+									.join(" and ")} credit{(result.creditedParts ?? []).reduce(
+									(sum, part) => sum + part.credits,
+									0
+								) === 1
+									? ""
+									: "s"}.
 							</p>
 						{/if}
 					</li>

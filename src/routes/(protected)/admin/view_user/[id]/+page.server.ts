@@ -46,7 +46,7 @@ export const load = (async ({ params, locals }) => {
 		error(401, `User with id of "${user_id}" does not exist.`);
 	}
 
-	const [credits, strikes, publicProfile] = await Promise.all([
+	const [credits, strikes, publicProfile, sessions] = await Promise.all([
 		locals.pb.collection("credits").getFullList({
 			filter: `user="${user.id}"`,
 			expand: "event,session,session.tutoringRequest",
@@ -60,8 +60,50 @@ export const load = (async ({ params, locals }) => {
 		locals.pb
 			.collection("publicUsers")
 			.getOne(user.id, { fields: "email", requestKey: null })
-			.catch(() => undefined)
+			.catch(() => undefined),
+		// Sessions they tutored or were tutored in, for anyone who can open tutoring review.
+		canAccess(locals.user as RecievedUser, "tutoring")
+			? locals.pb
+					.collection("tutoringSessions")
+					.getList(1, 50, {
+						filter: `tutor="${user.id}" || tutee="${user.id}"`,
+						expand: "tutoringRequest",
+						sort: "-created",
+						requestKey: null
+					})
+					.then((result) => result.items)
+					.catch(() => [])
+			: Promise.resolve(null)
 	]);
+	const otherIds = [
+		...new Set(
+			(sessions ?? []).map((session) => (session.tutor === user.id ? session.tutee : session.tutor))
+		)
+	];
+	const others = otherIds.length
+		? ((await locals.pb.collection("publicUsers").getFullList({
+				filter: otherIds.map((id) => `id="${id}"`).join(" || "),
+				fields: "id,name",
+				requestKey: null
+			})) as unknown as { id: string; name: string }[])
+		: [];
+	const tutoringSessions = sessions
+		? sessions.map((session) => {
+				const request = session.expand?.tutoringRequest;
+				const role = session.tutor === user.id ? "tutor" : "tutee";
+				const otherId = role === "tutor" ? session.tutee : session.tutor;
+				return {
+					id: session.id as string,
+					role,
+					otherName: others.find((other) => other.id === otherId)?.name ?? "Unknown",
+					label: [request?.class, request?.topic].filter(Boolean).join(": ") || "Tutoring session",
+					created: session.created as string,
+					isComplete: Boolean(session.isComplete),
+					waiting: Boolean(session.tuteeMarkedComplete) && !session.isComplete,
+					flagged: Boolean(session.durationWarning)
+				};
+			})
+		: null;
 
 	const fullUser = {
 		...(user as unknown as RecievedUser),
@@ -76,7 +118,8 @@ export const load = (async ({ params, locals }) => {
 	return {
 		user: fullUser,
 		strikeForm,
-		creditForm
+		creditForm,
+		tutoringSessions
 	};
 }) satisfies PageServerLoad;
 

@@ -97,7 +97,19 @@
 					<li class="panel" class:is-flagged={session.durationWarning}>
 						<div class="sessions__top">
 							<div>
-								<h2>{session.tutor_name} <span>with</span> {session.tutee_name}</h2>
+								<h2>
+									{#if data.canViewPeople}
+										<a class="text-link" href="/admin/view_user/{session.tutor}"
+											>{session.tutor_name}</a
+										>
+										<span>with</span>
+										<a class="text-link" href="/admin/view_user/{session.tutee}"
+											>{session.tutee_name}</a
+										>
+									{:else}
+										{session.tutor_name} <span>with</span> {session.tutee_name}
+									{/if}
+								</h2>
 								<p class="muted">
 									{[req?.class ?? "Tutoring session", req?.subject, req?.topic]
 										.filter(Boolean)
@@ -105,6 +117,7 @@
 								</p>
 							</div>
 							<div class="sessions__badges">
+								<a class="btn btn-sm" href="/admin/tutoring/{session.id}">Details and chat</a>
 								{#if session.durationWarning}<span class="badge badge--danger">Flagged</span>{/if}
 								{#if session.isComplete}
 									<span class="badge badge--success">Complete</span>
@@ -258,6 +271,7 @@
 	}
 	.sessions__badges {
 		display: flex;
+		align-items: center;
 		flex-wrap: wrap;
 		gap: 0.35rem;
 	}

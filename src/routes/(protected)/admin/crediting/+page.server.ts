@@ -5,7 +5,13 @@ import { z } from "zod";
 import type { Actions, PageServerLoad } from "./$types";
 import type { RecievedUser } from "$lib/db_types";
 import { canAccess } from "$lib/adminAccess";
-import { getActiveCreditSemester } from "$lib/creditSemesters";
+import { activeSemesterCreditTotals, getActiveCreditSemester } from "$lib/creditSemesters";
+import { roundCredits } from "$lib/calculateCredits";
+import type {
+	RecievedCredit,
+	RecievedCreditRequirement,
+	RecievedCreditSemester
+} from "$lib/db_types";
 import { actions as adminActions } from "../+page.server";
 
 const MassCreditorSchema = z.object({ csv_string: z.string() });
@@ -17,7 +23,7 @@ const SingleCreditSchema = z.object({
 		.positive("Enter a number of credits above 0.")
 		.max(100)
 		.multipleOf(0.01, "Use at most two decimal places, like 1.25."),
-	type: z.enum(["event", "tutoring", "other"]),
+	type: z.enum(["event", "tutoring", "other", "other_then_event", "other_then_tutoring"]),
 	manualExplanation: z.string().trim().min(2, "Add a short reason.").max(256)
 });
 
@@ -88,26 +94,57 @@ export const actions: Actions = {
 				creditError: parsed.error.issues[0]?.message ?? "Check the credit details."
 			});
 		}
+		const { user, credits, type, manualExplanation } = parsed.data;
+		let parts: { type: "event" | "tutoring" | "other"; credits: number }[] = [];
 		try {
 			const semester = await getActiveCreditSemester(locals.pb);
-			await locals.pb.collection("credits").create(
-				{
-					user: parsed.data.user,
-					credits: parsed.data.credits,
-					type: parsed.data.type,
-					manualExplanation: parsed.data.manualExplanation,
-					semester: semester.id
-				},
-				{ requestKey: null }
-			);
+			if (type === "other_then_event" || type === "other_then_tutoring") {
+				// Fill whatever "other" credits they still need, then put the rest in
+				// the next category.
+				const [person, existing, semesters, requirements] = await Promise.all([
+					locals.pb.collection("users").getOne(user, { requestKey: null }),
+					locals.pb
+						.collection("credits")
+						.getFullList({ filter: `user="${user}"`, requestKey: null }),
+					locals.pb.collection("creditSemesters").getFullList({ requestKey: null }),
+					locals.pb.collection("creditRequirements").getFullList({ requestKey: null })
+				]);
+				const totals = activeSemesterCreditTotals(
+					existing as unknown as RecievedCredit[],
+					person as unknown as RecievedUser,
+					semesters as unknown as RecievedCreditSemester[],
+					requirements as unknown as RecievedCreditRequirement[]
+				);
+				const stillNeeded = Math.max(0, roundCredits(totals.other.required - totals.other.have));
+				const toOther = roundCredits(Math.min(credits, stillNeeded));
+				const rest = roundCredits(credits - toOther);
+				const next = type === "other_then_event" ? "event" : "tutoring";
+				if (toOther > 0) parts.push({ type: "other", credits: toOther });
+				if (rest > 0) parts.push({ type: next, credits: rest });
+			} else {
+				parts = [{ type, credits }];
+			}
+			for (const part of parts) {
+				await locals.pb
+					.collection("credits")
+					.create(
+						{
+							user,
+							credits: part.credits,
+							type: part.type,
+							manualExplanation,
+							semester: semester.id
+						},
+						{ requestKey: null }
+					);
+			}
 		} catch (createError) {
 			console.error(createError);
 			return fail(400, { creditError: "Couldn't add the credit. Try again." });
 		}
 		return {
-			credited: parsed.data.user,
-			creditedAmount: parsed.data.credits,
-			creditedType: parsed.data.type
+			credited: user,
+			creditedParts: parts
 		};
 	}
 };

@@ -147,6 +147,48 @@
 				<p>It can request tutoring, but it has no credits or strikes to manage.</p>
 			</div>
 		{/if}
+
+		{#if data.tutoringSessions}
+			<section class="panel tutoring-list" aria-labelledby="tutoring-title">
+				<h2 id="tutoring-title" class="section-title">Tutoring sessions</h2>
+				{#if data.tutoringSessions.length === 0}
+					<p class="muted">No tutoring sessions yet.</p>
+				{:else}
+					<ul>
+						{#each data.tutoringSessions as session (session.id)}
+							<li>
+								<a href="/admin/tutoring/{session.id}">
+									<span class="tutoring-list__main">
+										<strong>{session.label}</strong>
+										<span class="muted"
+											>{session.role === "tutor" ? "Tutored" : "Tutored by"}
+											{session.otherName}, {new Date(session.created).toLocaleDateString(
+												undefined,
+												{
+													month: "short",
+													day: "numeric",
+													year: "numeric"
+												}
+											)}</span
+										>
+									</span>
+									<span class="tutoring-list__badges">
+										{#if session.flagged}<span class="badge badge--danger">Flagged</span>{/if}
+										{#if session.isComplete}
+											<span class="badge badge--success">Complete</span>
+										{:else if session.waiting}
+											<span class="badge badge--warning">Waiting for proof</span>
+										{:else}
+											<span class="badge">Active</span>
+										{/if}
+									</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</section>
+		{/if}
 	{:else}
 		<div class="empty-state">
 			<h1>We couldn't find that account.</h1>
@@ -157,6 +199,44 @@
 </main>
 
 <style>
+	.tutoring-list {
+		margin-top: 1.25rem;
+	}
+	.tutoring-list ul {
+		margin: 0.5rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.tutoring-list li + li {
+		border-top: 1px solid var(--line);
+	}
+	.tutoring-list a {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem 1rem;
+		margin: 0 -0.6rem;
+		padding: 0.7rem 0.6rem;
+		border-radius: 10px;
+		color: inherit;
+		text-decoration: none;
+	}
+	.tutoring-list a:hover {
+		background: var(--wash);
+	}
+	.tutoring-list__main {
+		display: grid;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+	.tutoring-list__main .muted {
+		font-size: var(--text-sm);
+	}
+	.tutoring-list__badges {
+		display: flex;
+		gap: 0.35rem;
+	}
 	.back {
 		display: inline-flex;
 		align-items: center;

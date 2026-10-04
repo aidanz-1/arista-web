@@ -72,6 +72,7 @@ export const load = (async ({ locals, url }) => {
 			tutee_email: peopleById.get(session.tutee)?.email ?? ""
 		})),
 		filters: { search, date, review },
+		canViewPeople: canAccess(user, "people"),
 		pagination: {
 			page: sessionPage.page,
 			totalItems: sessionPage.totalItems,
