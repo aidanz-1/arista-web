@@ -83,6 +83,19 @@
 			</div>
 		</section>
 
+		{#if data?.hasContactInfo === false}
+			<section class="tutee__contact" aria-labelledby="contact-title">
+				<div>
+					<h2 id="contact-title">Add your contact info</h2>
+					<p>
+						Your tutor sees it once they claim your request, so they can reach you to plan a time. A
+						phone number, Instagram, or Discord works.
+					</p>
+				</div>
+				<a class="btn btn-primary" href="/settings#about-you-title">Add contact info</a>
+			</section>
+		{/if}
+
 		<section class="tutee__steps" aria-labelledby="steps-title">
 			<h2 id="steps-title" class="section-title">How it goes</h2>
 			<ol>
@@ -101,6 +114,12 @@
 			</ol>
 		</section>
 
+		{#if data?.hasContactInfo}
+			<p class="tutee__support">
+				Changed your number or handle? Keep your contact info current in
+				<a class="text-link" href="/settings#about-you-title">Settings</a>.
+			</p>
+		{/if}
 		<p class="tutee__support">
 			Something not working? Email Mekot, VP of Web Development, at
 			<a class="text-link" href="mailto:stuyaristanycweb@gmail.com">stuyaristanycweb@gmail.com</a>.
@@ -508,6 +527,26 @@
 		margin: 0.4rem 0 0;
 		color: var(--muted);
 		line-height: 1.55;
+	}
+	.tutee__contact {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem 1.5rem;
+		padding: 1.25rem 1.4rem;
+		border: 1px solid color-mix(in srgb, var(--flame) 45%, transparent);
+		border-radius: var(--radius-panel);
+		background: color-mix(in srgb, var(--flame) 12%, var(--surface));
+	}
+	.tutee__contact h2 {
+		font-size: var(--text-lg);
+	}
+	.tutee__contact p {
+		max-width: 46ch;
+		margin: 0.3rem 0 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
 	}
 	.tutee__support {
 		margin: 0;

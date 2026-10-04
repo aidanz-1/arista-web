@@ -4,8 +4,14 @@ import type { RecievedCreditRequirement, RecievedCreditSemester } from "$lib/db_
 
 // Get the data, for page load
 export const load = (async ({ params, locals }) => {
-	if (!locals.user || !locals.user.member) {
-		return;
+	if (!locals.user) return;
+	if (!locals.user.member) {
+		// Tutors reach tutees through their contact card, so nudge tutees who
+		// haven't written one yet.
+		const cards = await locals.pb
+			.collection("contactCards")
+			.getList(1, 1, { filter: `user="${locals.user.id}"`, fields: "details", requestKey: null });
+		return { hasContactInfo: Boolean(String(cards.items[0]?.details ?? "").trim()) };
 	}
 	const [credits, strikes, signed_up_events, creditSemesters, creditRequirements] =
 		await Promise.all([

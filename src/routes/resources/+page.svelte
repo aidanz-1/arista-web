@@ -92,16 +92,21 @@
 						onload={warmInactiveEmbeds}
 					></iframe>
 				</div>
-				{#if $currentUser?.member}
-					<p class="notice member-note">
-						Made a guide that helped you? <a
-							class="text-link"
-							href={links.submit}
-							target="_blank"
-							rel="noreferrer">Submit it for review</a
-						> and it may count toward your other credits.
+				<div class="notice member-note">
+					<p>
+						{#if $currentUser?.member}
+							Made a study guide? Submit it for "other" credits. Each guide can earn up to 1 credit,
+							depending on quality.
+						{:else}
+							Made a study guide that helped you? Submit it, and it may be added to the library for
+							other students.
+						{/if}
+						Every format counts, including Quizlets, Kahoots, and handwritten notes.
 					</p>
-				{/if}
+					<a class="btn" href={links.submit} target="_blank" rel="noreferrer"
+						>Submit a study guide <ExternalLinkIcon /></a
+					>
+				</div>
 			</div>
 		{/if}
 
@@ -284,7 +289,16 @@
 		background: #000;
 	}
 	.member-note {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem 1.25rem;
 		margin: 1rem 0 0;
+	}
+	.member-note p {
+		max-width: 60ch;
+		margin: 0;
 	}
 
 	.freshman {
