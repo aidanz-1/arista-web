@@ -141,16 +141,23 @@
 {:else}
 	<main class="home">
 		<section class="hero" aria-labelledby="home-title">
-			<img
-				class="hero__photo"
-				src="/images/members-2026.jpg"
-				srcset="/images/members-2026-1000.jpg 1000w, /images/members-2026.jpg 1730w"
-				sizes="100vw"
-				width="1730"
-				height="763"
-				alt="A large group of ARISTA members in ARISTA t-shirts, gathered together in a Stuyvesant hallway."
-				fetchpriority="high"
-			/>
+			<picture>
+				<source
+					type="image/webp"
+					srcset="/images/members-2026-640.webp 640w, /images/members-2026-1000.webp 1000w, /images/members-2026-1730.webp 1730w"
+					sizes="100vw"
+				/>
+				<img
+					class="hero__photo"
+					src="/images/members-2026.jpg"
+					srcset="/images/members-2026-1000.jpg 1000w, /images/members-2026.jpg 1730w"
+					sizes="100vw"
+					width="1730"
+					height="763"
+					alt="A large group of ARISTA members in ARISTA t-shirts, gathered together in a Stuyvesant hallway."
+					fetchpriority="high"
+				/>
+			</picture>
 			<div class="hero__shade" aria-hidden="true"></div>
 			<div class="hero__inner">
 				<div class="hero__text">
