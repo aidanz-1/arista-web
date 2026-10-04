@@ -57,6 +57,9 @@
 	let profileActionResult = $derived(
 		(page.form ?? {}) as { profileUpdated?: boolean; profileError?: string }
 	);
+	let emailPrefResult = $derived(
+		(page.form ?? {}) as { emailPrefUpdated?: boolean; emailPrefError?: string }
+	);
 	let themeActionResult = $derived(
 		(page.form ?? {}) as { themeUpdated?: boolean; themeError?: string }
 	);
@@ -252,6 +255,47 @@
 					</p>
 				</section>
 
+				<section class="panel" aria-labelledby="emails-title">
+					<h2 id="emails-title" class="section-title appearance__title">Message emails</h2>
+					<p class="muted emails__hint">
+						If a tutoring message sits unread for 3 hours, we email you. At most once a day per
+						session.
+					</p>
+					<form
+						method="POST"
+						action="?/update_message_emails"
+						use:enhance={() =>
+							async ({ result }) => {
+								await applyAction(result);
+								await invalidateAll();
+							}}
+					>
+						<div class="segmented" role="group" aria-label="Message emails">
+							<button
+								type="submit"
+								name="enabled"
+								value="true"
+								class:active={!$currentUser?.muteMessageEmails}
+								aria-pressed={!$currentUser?.muteMessageEmails}>On</button
+							>
+							<button
+								type="submit"
+								name="enabled"
+								value="false"
+								class:active={!!$currentUser?.muteMessageEmails}
+								aria-pressed={!!$currentUser?.muteMessageEmails}>Off</button
+							>
+						</div>
+					</form>
+					<p class="panel__status" aria-live="polite">
+						{#if emailPrefResult.emailPrefError}
+							<span class="field-error">{emailPrefResult.emailPrefError}</span>
+						{:else if emailPrefResult.emailPrefUpdated}
+							Saved.
+						{/if}
+					</p>
+				</section>
+
 				<section class="panel" aria-labelledby="password-title">
 					<h2 id="password-title" class="section-title">Change password</h2>
 					<form
@@ -425,6 +469,10 @@
 		box-shadow:
 			0 1px 2px rgb(22 39 90 / 12%),
 			0 0 0 1px var(--line);
+	}
+	.emails__hint {
+		margin: -0.25rem 0 0.85rem;
+		font-size: var(--text-sm);
 	}
 	.appearance__title {
 		margin-bottom: 1rem;

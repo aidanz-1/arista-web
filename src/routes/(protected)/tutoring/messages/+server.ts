@@ -1,3 +1,4 @@
+import { markSessionsRead } from "$lib/server/markRead";
 import { error, json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import {
@@ -66,6 +67,13 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		filter: messageFilter,
 		requestKey: null
 	})) as unknown as RecievedTutoringMessage[];
+
+	await markSessionsRead(
+		locals.pb,
+		locals.user.id,
+		sessions.filter((session) => accessibleSessionIds.includes(session.id)),
+		messages
+	);
 
 	const senderIds = [...new Set(messages.map((message) => message.sender))];
 	const senders = senderIds.length

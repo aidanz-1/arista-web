@@ -1,3 +1,4 @@
+import { markSessionsRead } from "$lib/server/markRead";
 import { error, fail } from "@sveltejs/kit";
 import type { Actions } from "./$types";
 import { superValidate } from "sveltekit-superforms";
@@ -133,6 +134,8 @@ export const load = async ({ locals, request }) => {
 				})) as unknown
 			) as RecievedTutoringMessage[])
 		: [];
+
+	await markSessionsRead(locals.pb, locals.user.id, sessions, messages);
 
 	const messageSenderIds = [...new Set(messages.map((message) => message.sender))];
 	const messageSenders = messageSenderIds.length

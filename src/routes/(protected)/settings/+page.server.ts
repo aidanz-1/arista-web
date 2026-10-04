@@ -149,6 +149,23 @@ export const actions: Actions = {
 
 		return { themeUpdated: true, themePreference: parsed.data.themePreference };
 	},
+	update_message_emails: async ({ locals, request }) => {
+		if (!locals?.user?.id) {
+			error(401, "User not logged in.");
+		}
+		const enabled = (await request.formData()).get("enabled") === "true";
+		try {
+			await locals.pb
+				.collection("users")
+				.update(locals.user.id, { muteMessageEmails: !enabled }, { requestKey: null });
+			await locals.pb.collection("users").authRefresh({ requestKey: null });
+		} catch (updateError) {
+			return fail(400, {
+				emailPrefError: `Could not save. ${extractPbErrorMessage(updateError)}`
+			});
+		}
+		return { emailPrefUpdated: true };
+	},
 	delete_account: async ({ locals, request }) => {
 		const form = await superValidate(request, zod(SettingsPageSchema));
 

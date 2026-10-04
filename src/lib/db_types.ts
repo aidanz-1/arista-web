@@ -27,6 +27,7 @@ export const UserSchema = z.object({
 	member: z.boolean().default(false),
 	creditChoice: z.boolean().default(false),
 	themePreference: z.enum(["system", "light", "dark"]).default("system"),
+	muteMessageEmails: z.boolean().default(false),
 	adminSections: z.array(z.enum(["people", "crediting", "tutoring", "credits"])).optional()
 });
 
