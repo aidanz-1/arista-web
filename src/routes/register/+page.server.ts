@@ -54,7 +54,11 @@ export const load = async ({ locals, request, url }) => {
 
 export const actions: Actions = {
 	default: async ({ locals, request, url }) => {
-		const form = await superValidate(request, zod(RegisterPageSchema));
+		// Accept OSIS numbers typed with spaces, dashes, or full-width digits.
+		const data = await request.formData();
+		const osis = data.get("osis");
+		if (typeof osis === "string") data.set("osis", osis.normalize("NFKC").replace(/\D/g, ""));
+		const form = await superValidate(data, zod(RegisterPageSchema));
 		// Convenient validation check:
 		if (!form.valid) {
 			// Again, return { form } and things will just work.

@@ -88,8 +88,7 @@
 			label="OSIS number"
 			hint="The 9-digit number on your student ID."
 			inputmode="numeric"
-			maxlength="9"
-			pattern="[0-9]{9}"
+			autocomplete="off"
 		/>
 
 		<InputField
