@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from "$app/state";
+	import { onMount } from "svelte";
 	import { currentUser } from "$lib/pocketbase";
 	import ExternalLinkIcon from "$lib/components/ExternalLinkIcon.svelte";
 	import { getPageSeo } from "$lib/seo";
@@ -24,30 +25,44 @@
 	// Once the visible embed loads, mount the other sections too (hidden) so
 	// switching tabs is instant and nothing reloads.
 	let warmEmbeds = $state(false);
+	let cramWrap: HTMLDivElement | undefined = $state();
 	let slidesWrap: HTMLDivElement | undefined = $state();
 	let videoWrap: HTMLDivElement | undefined = $state();
-	// iPhones can't put an iframe into real full screen, so fall back to a
-	// fixed overlay that fills the viewport.
-	let expanded: "slides" | "video" | null = $state(null);
+	type Expandable = "cram" | "slides" | "video";
+	// Phones get an overlay that fills the screen and always shows our Close
+	// button. iPhone's own full screen hides it and often doesn't work for
+	// iframes. Computers also get the browser's real full screen on top.
+	let expanded: Expandable | null = $state(null);
+	// The Drive folder's grid view is a column of huge tiles on phones, so
+	// phones get the list view. Decided before the iframe mounts.
+	let narrow: boolean | null = $state(null);
 
-	type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => void };
+	onMount(() => {
+		narrow = window.matchMedia("(max-width: 640px)").matches;
+		const onFullscreenChange = () => {
+			if (!document.fullscreenElement) expanded = null;
+		};
+		document.addEventListener("fullscreenchange", onFullscreenChange);
+		return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+	});
 
-	function goFullscreen(wrap: HTMLDivElement | undefined, key: "slides" | "video") {
-		const el = wrap as FullscreenElement | undefined;
-		if (!el) return;
-		if (el.requestFullscreen && document.fullscreenEnabled) {
-			el.requestFullscreen().catch(() => (expanded = key));
-		} else if (el.webkitRequestFullscreen) {
-			el.webkitRequestFullscreen();
-		} else {
-			expanded = key;
+	function goFullscreen(wrap: HTMLDivElement | undefined, key: Expandable) {
+		expanded = key;
+		const desktop = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+		if (desktop && wrap?.requestFullscreen && document.fullscreenEnabled) {
+			wrap.requestFullscreen().catch(() => undefined);
 		}
+	}
+
+	function closeFullscreen() {
+		if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+		expanded = null;
 	}
 
 	$effect(() => {
 		if (!expanded) return;
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "Escape") expanded = null;
+			if (event.key === "Escape") closeFullscreen();
 		};
 		window.addEventListener("keydown", onKey);
 		// Lift the page's scroll area above the navbar while the overlay is open.
@@ -111,12 +126,16 @@
 						>Open in Google Drive <ExternalLinkIcon /></a
 					>
 				</div>
-				<div class="embed">
-					<iframe
-						src="https://drive.google.com/embeddedfolderview?id=1be4chwo7CKO5FMtIEnk-M9HyczaV9zUb#grid"
-						title="ARISTA study guide library"
-						onload={warmInactiveEmbeds}
-					></iframe>
+				<div class="embed embed--folder">
+					{#if narrow !== null}
+						<iframe
+							src="https://drive.google.com/embeddedfolderview?id=1be4chwo7CKO5FMtIEnk-M9HyczaV9zUb#{narrow
+								? 'list'
+								: 'grid'}"
+							title="ARISTA study guide library"
+							onload={warmInactiveEmbeds}
+						></iframe>
+					{/if}
 				</div>
 				<div class="notice member-note">
 					<p>
@@ -140,11 +159,22 @@
 			<div class="resource__section" hidden={activeSection !== "cram"}>
 				<div class="resource__head">
 					<h2>Cram Central</h2>
-					<a class="btn btn-primary" href={links.cram} target="_blank" rel="noreferrer"
-						>Open in Google Docs <ExternalLinkIcon /></a
-					>
+					<div class="resource__actions">
+						<button type="button" class="btn" onclick={() => goFullscreen(cramWrap, "cram")}>
+							<svg viewBox="0 0 24 24" aria-hidden="true"
+								><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg
+							>
+							Full screen
+						</button>
+						<a class="btn btn-primary" href={links.cram} target="_blank" rel="noreferrer"
+							>Open in Docs <ExternalLinkIcon /></a
+						>
+					</div>
 				</div>
-				<div class="embed">
+				<div class="embed" class:embed--expanded={expanded === "cram"} bind:this={cramWrap}>
+					{#if expanded === "cram"}
+						<button type="button" class="embed__close" onclick={closeFullscreen}>Close</button>
+					{/if}
 					<iframe
 						src="https://docs.google.com/document/d/1MaEsfssTqSrw0O6xE4KWCzx4eMzBZgJWugvleDJmfMs/preview"
 						title="Cram Central"
@@ -187,9 +217,7 @@
 							bind:this={slidesWrap}
 						>
 							{#if expanded === "slides"}
-								<button type="button" class="embed__close" onclick={() => (expanded = null)}
-									>Close</button
-								>
+								<button type="button" class="embed__close" onclick={closeFullscreen}>Close</button>
 							{/if}
 							<iframe
 								src="https://docs.google.com/presentation/d/175Cbn57TR8R3gi4jjRrRfUrOjPmYV83ZF9zkv4qLWAY/embed?start=false&loop=false&delayms=3000"
@@ -228,9 +256,7 @@
 							bind:this={videoWrap}
 						>
 							{#if expanded === "video"}
-								<button type="button" class="embed__close" onclick={() => (expanded = null)}
-									>Close</button
-								>
+								<button type="button" class="embed__close" onclick={closeFullscreen}>Close</button>
 							{/if}
 							<iframe
 								src="https://drive.google.com/file/d/1VLqBZd2xlR37_qT4ZtN8xzGCrJArUhmF/preview"
@@ -353,6 +379,25 @@
 		aspect-ratio: 16 / 9;
 		margin-top: 0.85rem;
 		background: #000;
+	}
+	.resource__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+	}
+	.resource__actions svg {
+		width: 1rem;
+		height: 1rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-width: 2;
+		stroke-linecap: round;
+	}
+	/* Phones: taller document frames so there's room to read and scroll. */
+	@media (max-width: 640px) {
+		.embed:not(.embed--wide):not(.embed--expanded) {
+			height: 70dvh;
+		}
 	}
 	.embed:fullscreen {
 		border: 0;
