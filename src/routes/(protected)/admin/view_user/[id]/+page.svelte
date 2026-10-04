@@ -5,7 +5,6 @@
 	import { enhance } from "$app/forms";
 	import { superForm, formFieldProxy } from "sveltekit-superforms";
 	import InputField from "$lib/components/InputField.svelte";
-	import { RadioGroup, RadioItem } from "$lib/skeleton-compat";
 	import StrikesDisplay from "$lib/components/StrikesDisplay.svelte";
 	import SemesterCreditPanel from "$lib/components/SemesterCreditPanel.svelte";
 
@@ -21,6 +20,9 @@
 	const creditFormType = formFieldProxy(creditFormObj, "type").value;
 
 	let full_user = $derived(data.user);
+	const creditedParts = $derived(
+		(page.form as { creditedParts?: { type: string; credits: number }[] } | null)?.creditedParts
+	);
 	const choiceResult = $derived(
 		(page.form ?? {}) as { choiceUpdated?: boolean; choiceError?: string }
 	);
@@ -102,16 +104,16 @@
 			<section class="actions" aria-label="Record credit or a strike">
 				<form class="panel" method="POST" action="?/credit_user" use:enhance>
 					<h2 class="section-title">Add credit</h2>
-					<div class="actions__type">
+					<label class="actions__type">
 						<span class="field-label">Type</span>
-						<RadioGroup>
-							<RadioItem bind:group={$creditFormType} name="type" value="event">Event</RadioItem>
-							<RadioItem bind:group={$creditFormType} name="type" value="tutoring"
-								>Tutoring</RadioItem
-							>
-							<RadioItem bind:group={$creditFormType} name="type" value="other">Other</RadioItem>
-						</RadioGroup>
-					</div>
+						<select name="type" bind:value={$creditFormType}>
+							<option value="event">Event</option>
+							<option value="tutoring">Tutoring</option>
+							<option value="other">Other</option>
+							<option value="other_then_event">Other, then events</option>
+							<option value="other_then_tutoring">Other, then tutoring</option>
+						</select>
+					</label>
 					<InputField
 						label="Credits"
 						placeholder="1"
@@ -127,7 +129,20 @@
 						field="manualExplanation"
 						form={creditFormObj}
 					/>
+					{#if $creditFormType === "other_then_event" || $creditFormType === "other_then_tutoring"}
+						<p class="muted actions__hint">
+							Fills the Other credits they still need this semester, then adds the rest to {$creditFormType ===
+							"other_then_event"
+								? "events"
+								: "tutoring"}.
+						</p>
+					{/if}
 					<button type="submit" class="btn btn-primary">Add credit</button>
+					{#if creditedParts}
+						<p class="actions__done" role="status">
+							Added {creditedParts.map((part) => `${part.credits} ${part.type}`).join(" and ")} credits.
+						</p>
+					{/if}
 				</form>
 				<form class="panel" method="POST" action="?/strike_user" use:enhance>
 					<h2 class="section-title">Add a strike</h2>
@@ -199,6 +214,15 @@
 </main>
 
 <style>
+	.actions__hint,
+	.actions__done {
+		margin: 0;
+		font-size: var(--text-sm);
+	}
+	.actions__done {
+		color: var(--success, inherit);
+		font-weight: 600;
+	}
 	.tutoring-list {
 		margin-top: 1.25rem;
 	}

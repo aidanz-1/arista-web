@@ -12,12 +12,15 @@ import { canAccess } from "$lib/adminAccess";
 import { fail, superValidate } from "sveltekit-superforms";
 import { zod4 as zod } from "sveltekit-superforms/adapters";
 import { getActiveCreditSemester } from "$lib/creditSemesters";
+import { CREDIT_CHOICES, createPlannedCredits } from "$lib/server/planCredit";
+import { z } from "zod";
 
 const ManualCreditSchema = CreditSchema.pick({
 	credits: true,
-	manualExplanation: true,
-	type: true
-}).required();
+	manualExplanation: true
+})
+	.extend({ type: z.enum(CREDIT_CHOICES) })
+	.required();
 
 // Get the data, for page load
 export const load = (async ({ params, locals }) => {
@@ -211,20 +214,19 @@ export const actions = {
 		}
 
 		const activeSemester = await getActiveCreditSemester(locals.pb);
-		await locals.pb.collection("credits").create(
-			{
-				credits: parseFloat(String(form.data.credits)),
-				manualExplanation: form.data.manualExplanation,
-				type: form.data.type,
-				user: user.id,
-				semester: activeSemester.id
-			},
-			{ requestKey: null } // requestKey is null here to avoid cancelled requests when successive requests are ran
+		const creditedParts = await createPlannedCredits(
+			locals.pb,
+			user.id,
+			parseFloat(String(form.data.credits)),
+			form.data.type,
+			form.data.manualExplanation,
+			activeSemester.id
 		);
 
 		return {
 			user: user,
-			form
+			form,
+			creditedParts
 		};
 	}
 };

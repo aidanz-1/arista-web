@@ -26,8 +26,10 @@
 		<p>Paste one person per line, in this order:</p>
 		<code class="mass__format">email,credits,type,note</code>
 		<p>
-			Type is <code>event</code>, <code>tutoring</code>, or <code>other</code>. Lines that can't be
-			read stay in the box so you can fix them.
+			Type is <code>event</code>, <code>tutoring</code>, or <code>other</code>. Use
+			<code>other-event</code> or <code>other-tutoring</code> to fill the Other credits someone still
+			needs, then put the rest in events or tutoring. Lines that can't be read stay in the box so you
+			can fix them.
 		</p>
 	</div>
 	<form method="POST" action="?/mass_credit" use:enhance>

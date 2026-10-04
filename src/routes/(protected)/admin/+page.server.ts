@@ -1,6 +1,7 @@
 import { error } from "@sveltejs/kit";
 import { type RecievedUser } from "$lib/db_types.js";
 import type { PageServerLoad } from "./$types";
+import { createPlannedCredits, type CreditChoice } from "$lib/server/planCredit";
 import { canAccess } from "$lib/adminAccess";
 import { fail, superValidate } from "sveltekit-superforms";
 import { zod4 as zod } from "sveltekit-superforms/adapters";
@@ -81,6 +82,9 @@ function toCsvRow(fields: string[]) {
 	return fields.map((field) => `"${field.replaceAll('"', '""')}"`).join(",");
 }
 
+// Bulk lines use dashes for the split choices: other-event, other-tutoring.
+const BULK_TYPES = ["event", "tutoring", "other", "other-event", "other-tutoring"] as const;
+
 function isLineValid(fields: string[]): boolean {
 	// email, credit_num, credit_type, manual_explanation
 	if (fields.length !== 4) return false;
@@ -91,7 +95,7 @@ function isLineValid(fields: string[]): boolean {
 	if (!/^\d+(\.\d{1,2})?$/.test(credit_num)) return false;
 	const amount = Number(credit_num);
 	if (!(amount > 0 && amount <= 100)) return false;
-	if (!["event", "tutoring", "other"].includes(credit_type)) {
+	if (!(BULK_TYPES as readonly string[]).includes(credit_type)) {
 		return false;
 	}
 	// manual explanation can be anything but min 3 chars
@@ -149,6 +153,7 @@ export const actions = {
 
 		const invalid_lines: string[] = [];
 		const pending: { fields: string[]; request: Promise<unknown> }[] = [];
+		let sequential: Promise<unknown> = Promise.resolve();
 
 		for (const fields of rows) {
 			const [email, credit_num, credit_type, manual_explanation] = fields;
@@ -158,18 +163,20 @@ export const actions = {
 				invalid_lines.push(toCsvRow(fields));
 				continue;
 			}
+			const choice = credit_type.replace("-", "_then_") as CreditChoice;
+			// Split lines need the person's current totals, so they run one at a time.
+			const run = () =>
+				createPlannedCredits(
+					locals.pb,
+					userId,
+					Number(credit_num),
+					choice,
+					manual_explanation,
+					activeSemester.id
+				);
 			pending.push({
 				fields,
-				request: locals.pb.collection("credits").create(
-					{
-						credits: Number(credit_num),
-						manualExplanation: manual_explanation,
-						type: credit_type,
-						user: userId,
-						semester: activeSemester.id
-					},
-					{ requestKey: null }
-				)
+				request: choice.includes("_then_") ? (sequential = sequential.then(run, run)) : run()
 			});
 		}
 
