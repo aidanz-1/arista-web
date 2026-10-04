@@ -523,39 +523,53 @@
 		gap: 0.6rem;
 		margin-top: 1.75rem;
 	}
+	/* Timeline: across on wide screens, down the left edge on phones. */
 	.tutee__steps ol {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 1rem;
-		margin: 1.25rem 0 0;
+		gap: 2rem;
+		margin: 1.5rem 0 0;
 		padding: 0;
 		list-style: none;
 		counter-reset: step;
 	}
 	.tutee__steps li {
-		padding: 1.4rem;
-		border-radius: var(--radius-panel);
-		background: var(--wash);
+		position: relative;
 		counter-increment: step;
+		text-align: center;
 	}
 	.tutee__steps li::before {
+		position: relative;
+		z-index: 1;
 		display: grid;
 		place-items: center;
-		width: 2rem;
-		height: 2rem;
-		margin-bottom: 1rem;
+		width: 2.25rem;
+		height: 2.25rem;
+		margin: 0 auto 1rem;
+		border: 2px solid var(--flame);
 		border-radius: 50%;
-		background: var(--surface);
+		background: var(--paper);
 		color: var(--ink);
 		content: counter(step);
 		font-family: var(--font-display);
 		font-weight: 600;
 	}
+	/* The connecting line runs from each dot to the next one. */
+	.tutee__steps li:not(:last-child)::after {
+		position: absolute;
+		top: calc(1.125rem - 1px);
+		left: calc(50% + 1.125rem);
+		width: calc(100% + 2rem - 2.25rem);
+		height: 2px;
+		background: var(--line-strong);
+		content: "";
+	}
 	.tutee__steps h3 {
 		font-size: var(--text-lg);
 	}
 	.tutee__steps p {
-		margin: 0.4rem 0 0;
+		max-width: 30ch;
+		margin: 0.35rem auto 0;
 		color: var(--muted);
 		line-height: 1.55;
 	}
@@ -597,6 +611,32 @@
 		}
 		.tutee__steps ol {
 			grid-template-columns: 1fr;
+			gap: 0;
+		}
+		.tutee__steps li {
+			padding: 0 0 1.75rem 3.25rem;
+			text-align: left;
+		}
+		.tutee__steps p {
+			margin-left: 0;
+		}
+		.tutee__steps li:last-child {
+			padding-bottom: 0;
+		}
+		.tutee__steps li::before {
+			position: absolute;
+			top: 0;
+			left: 0;
+			margin: 0;
+		}
+		.tutee__steps li:not(:last-child)::after {
+			top: 2.25rem;
+			left: calc(1.125rem - 1px);
+			width: 2px;
+			height: calc(100% - 2.25rem);
+		}
+		.tutee__steps h3 {
+			padding-top: 0.3rem;
 		}
 	}
 	@media (max-width: 560px) {
