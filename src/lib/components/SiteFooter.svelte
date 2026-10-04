@@ -2,7 +2,7 @@
 	import { goto } from "$app/navigation";
 
 	function scrollRouteToTop() {
-		const scrollContainer = document.querySelector<HTMLElement>(".app-shell > main");
+		const scrollContainer = document.querySelector<HTMLElement>(".app-shell__scroll");
 		scrollContainer?.scrollTo({ top: 0, left: 0, behavior: "auto" });
 		window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 	}

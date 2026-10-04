@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex" />
+		<title>ARISTA</title>
+		<link rel="icon" type="image/png" href="/favicon.png?v=20260831" />
+		<style>
+			:root {
+				--paper: #fcfbf8;
+				--ink: #1c2236;
+				--muted: #555c70;
+				--navy: #1f3a7a;
+				--line: #e3e1da;
+			}
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--paper: #12151f;
+					--ink: #eef0f5;
+					--muted: #aab0c0;
+					--navy: #f2a93b;
+					--line: #2a2f3d;
+				}
+			}
+			body {
+				display: grid;
+				min-height: 100vh;
+				margin: 0;
+				padding: 1rem;
+				place-items: center;
+				background: var(--paper);
+				color: var(--ink);
+				font:
+					16px/1.5 system-ui,
+					sans-serif;
+			}
+			main {
+				max-width: 30rem;
+				text-align: center;
+			}
+			img {
+				width: 56px;
+				height: 56px;
+			}
+			h1 {
+				margin: 1rem 0 0.5rem;
+				font-size: 1.5rem;
+			}
+			p {
+				margin: 0 0 1.5rem;
+				color: var(--muted);
+			}
+			a {
+				display: inline-block;
+				margin: 0 0.25rem;
+				padding: 0.65rem 1.2rem;
+				border: 1px solid var(--line);
+				border-radius: 999px;
+				color: var(--ink);
+				font-weight: 600;
+				text-decoration: none;
+			}
+			a.primary {
+				border-color: var(--navy);
+				background: var(--navy);
+				color: var(--paper);
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<img src="/favicon.png?v=20260831" alt="" />
+			<h1>This page isn't available</h1>
+			<p>%sveltekit.error.message%</p>
+			<a class="primary" href="/">Go home</a>
+			<a href="/settings">Your account</a>
+		</main>
+	</body>
+</html>

@@ -13,7 +13,13 @@
 
 	let index = $state(0);
 	let paused = $state(false);
+	let stopped = $state(false); // Set by the pause button or any control, until Play.
 	let reduceMotion = $state(false);
+
+	function choose(next: number) {
+		stopped = true;
+		go(next);
+	}
 
 	function go(next: number) {
 		index = (next + slides.length) % slides.length;
@@ -24,7 +30,8 @@
 	onMount(() => {
 		reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 		const timer = window.setInterval(() => {
-			if (!paused && !reduceMotion && slides.length > 1 && !document.hidden) go(index + 1);
+			if (!paused && !stopped && !reduceMotion && slides.length > 1 && !document.hidden)
+				go(index + 1);
 		}, interval);
 		return () => window.clearInterval(timer);
 	});
@@ -61,7 +68,7 @@
 				type="button"
 				class="slideshow__arrow"
 				aria-label="Previous photo"
-				onclick={() => go(index - 1)}
+				onclick={() => choose(index - 1)}
 			>
 				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
 			</button>
@@ -72,7 +79,7 @@
 						class:active={dot === index}
 						aria-label="Photo {dot + 1} of {slides.length}"
 						aria-current={dot === index ? "true" : undefined}
-						onclick={() => go(dot)}
+						onclick={() => choose(dot)}
 					></button>
 				{/each}
 			</div>
@@ -80,10 +87,24 @@
 				type="button"
 				class="slideshow__arrow"
 				aria-label="Next photo"
-				onclick={() => go(index + 1)}
+				onclick={() => choose(index + 1)}
 			>
 				<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" /></svg>
 			</button>
+			{#if !reduceMotion}
+				<button
+					type="button"
+					class="slideshow__arrow"
+					aria-label={stopped ? "Play slideshow" : "Pause slideshow"}
+					onclick={() => (stopped = !stopped)}
+				>
+					{#if stopped}
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+					{:else}
+						<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12" /></svg>
+					{/if}
+				</button>
+			{/if}
 		</div>
 	{/if}
 </section>

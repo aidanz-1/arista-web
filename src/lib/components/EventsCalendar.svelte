@@ -133,7 +133,7 @@
 	}
 
 	function scrollContainer() {
-		const container = document.querySelector<HTMLElement>(".app-shell > main");
+		const container = document.querySelector<HTMLElement>(".app-shell__scroll");
 		return container;
 	}
 

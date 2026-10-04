@@ -142,7 +142,7 @@
 		font-size: var(--text-sm);
 	}
 	.board__credit {
-		color: var(--subtle);
+		color: var(--muted);
 		font-size: var(--text-xs);
 	}
 	.about__intro .lead {

@@ -16,9 +16,19 @@ export const GET: RequestHandler = async ({ locals, params, fetch }) => {
 		error(401, "User not logged in.");
 	}
 
-	const session = (await locals.pb.collection("tutoringSessions").getOne(params.sessionId, {
-		requestKey: null
-	})) as unknown as RecievedTutoringSession;
+	let session: RecievedTutoringSession;
+	try {
+		session = (await locals.pb.collection("tutoringSessions").getOne(params.sessionId, {
+			requestKey: null
+		})) as unknown as RecievedTutoringSession;
+	} catch (err) {
+		const status = (err as { status?: number })?.status;
+		if (status === 404 || status === 403 || status === 400) {
+			error(404, "This tutoring session could not be found.");
+		}
+		console.error("Proof lookup failed", status);
+		error(502, "The verification image could not be loaded.");
+	}
 
 	if (!canViewProof(session, locals.user as RecievedUser)) {
 		error(403, "You cannot view this verification image.");

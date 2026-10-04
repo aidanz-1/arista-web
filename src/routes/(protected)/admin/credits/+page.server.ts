@@ -49,13 +49,9 @@ export const actions = {
 		if (!semesters.some((semester) => semester.id === parsed.data.semester)) {
 			return fail(404, { semesterError: "That credit semester no longer exists." });
 		}
-		await Promise.all(
-			semesters.map((semester) =>
-				locals.pb
-					.collection("creditSemesters")
-					.update(semester.id, { active: semester.id === parsed.data.semester })
-			)
-		);
+		// One write: the creditSemesterSingleActive hook turns every other semester off
+		// in the same request, so there is no half-switched state.
+		await locals.pb.collection("creditSemesters").update(parsed.data.semester, { active: true });
 		return { semesterUpdated: true };
 	},
 	create_credit_semester: async ({ request, locals }) => {
@@ -88,18 +84,34 @@ export const actions = {
 				filter: `semester="${parsed.data.rolloverFrom}"`,
 				requestKey: null
 			});
-			await Promise.all(
-				sourceRequirements.map((requirement) =>
-					locals.pb.collection("creditRequirements").create({
+			// If any copy fails, remove the half-made semester so the admin can simply retry.
+			const copied: string[] = [];
+			try {
+				for (const requirement of sourceRequirements) {
+					const created = await locals.pb.collection("creditRequirements").create({
 						semester: semester.id,
 						graduationYear: requirement.graduationYear,
 						committee: requirement.committee,
 						eventCredits: requirement.eventCredits,
 						tutoringCredits: requirement.tutoringCredits,
 						otherCredits: requirement.otherCredits
-					})
-				)
-			);
+					});
+					copied.push(created.id);
+				}
+			} catch {
+				for (const id of copied)
+					await locals.pb
+						.collection("creditRequirements")
+						.delete(id)
+						.catch(() => undefined);
+				await locals.pb
+					.collection("creditSemesters")
+					.delete(semester.id)
+					.catch(() => undefined);
+				return fail(500, {
+					semesterError: `${parsed.data.name} couldn't be set up. Nothing was saved, so try again.`
+				});
+			}
 		}
 		return { createdSemester: semester };
 	},

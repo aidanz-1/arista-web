@@ -79,7 +79,7 @@
 	// and keyboard focus starts on the first menu link.
 	$effect(() => {
 		if (!mobileMenuOpen) return;
-		const background = [...document.querySelectorAll<HTMLElement>(".app-shell > main, footer")];
+		const background = [...document.querySelectorAll<HTMLElement>(".app-shell__scroll, footer")];
 		background.forEach((element) => (element.inert = true));
 		void tick().then(() =>
 			document

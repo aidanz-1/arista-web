@@ -47,10 +47,10 @@
 
 	initializeStores();
 
-	// The page scrolls inside AppShell's main element, so the browser's own
+	// The page scrolls inside AppShell's scroll container, so the browser's own
 	// scroll handling never touches it. Remember the position for each history
 	// entry, restore it on Back/Forward, and start every new page at the top.
-	const scroller = () => document.querySelector<HTMLElement>(".app-shell > main");
+	const scroller = () => document.querySelector<HTMLElement>(".app-shell__scroll");
 	const scrollKey = () => `arista-scroll:${history.state?.["sveltekit:history"] ?? "start"}`;
 	// On Back/Forward the browser switches history entries before
 	// beforeNavigate runs, so save under the entry we were actually on.

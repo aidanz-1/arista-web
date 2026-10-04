@@ -67,12 +67,27 @@ export const actions: Actions = {
 
 		form.data.member = false; // New sign-ups begin as tutees.
 
-		// check if exists
 		try {
-			await locals.pb.collection<RecievedUser>("users").create(form.data); // create user
-			await locals.pb.collection("users").authWithPassword(form.data.email, form.data.password); // login
+			await locals.pb.collection<RecievedUser>("users").create(form.data);
 		} catch (error: unknown) {
-			return handleError("User with that email already exists.", form); // usually this is cuz email taken (can't check here without having some serious security vulns)
+			const data = (error as { response?: { data?: Record<string, { code?: string }> } })?.response
+				?.data;
+			if (data?.email?.code === "validation_not_unique") {
+				return handleError("An account with that email already exists. Try signing in.", form);
+			}
+			if (data && Object.keys(data).length > 0) {
+				return handleError("Some details weren't accepted. Check the form and try again.", form);
+			}
+			return handleError("We couldn't create your account right now. Try again in a minute.", form);
+		}
+		try {
+			await locals.pb.collection("users").authWithPassword(form.data.email, form.data.password);
+		} catch {
+			// The account exists now, so send them to sign in rather than signing up again.
+			throw redirect(
+				303,
+				"/login?message=" + encodeURIComponent("Your account was created. Sign in to continue.")
+			);
 		}
 		const redirectTo = url.searchParams.get("redirectTo");
 		throw redirect(303, getSafeRedirectTarget(redirectTo, url.origin));

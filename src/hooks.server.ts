@@ -119,5 +119,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 		pb.authStore.exportToCookie({ httpOnly: true, secure: !dev, sameSite: "lax" })
 	);
 
+	response.headers.set("X-Content-Type-Options", "nosniff");
+	response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+	response.headers.set("Content-Security-Policy", "frame-ancestors 'none'");
+	response.headers.set("X-Frame-Options", "DENY");
+
 	return response;
 };

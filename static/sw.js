@@ -32,15 +32,24 @@ self.addEventListener("fetch", (event) => {
 	// Exclude Vite's development modules. Caching them makes hot updates appear stale.
 	if (!isSameOrigin || !isBuiltAsset) return;
 
+	// Hashed build files never change, so the cached copy is always right.
+	// Everything else (photos, icons) keeps a stable URL, so show the cached copy
+	// but refresh it in the background.
+	const isHashed = url.pathname.startsWith("/_app/immutable/");
 	event.respondWith(
 		caches.match(event.request).then(async (cachedResponse) => {
-			if (cachedResponse) return cachedResponse;
-			const response = await fetch(event.request);
-			if (response.ok) {
-				const cache = await caches.open(CACHE_NAME);
-				cache.put(event.request, response.clone());
+			const refresh = fetch(event.request).then(async (response) => {
+				if (response.ok) {
+					const cache = await caches.open(CACHE_NAME);
+					await cache.put(event.request, response.clone());
+				}
+				return response;
+			});
+			if (cachedResponse) {
+				if (!isHashed) event.waitUntil(refresh.catch(() => undefined));
+				return cachedResponse;
 			}
-			return response;
+			return refresh;
 		})
 	);
 });
