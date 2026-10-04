@@ -126,7 +126,11 @@
 						>Open in Google Drive <ExternalLinkIcon /></a
 					>
 				</div>
-				<div class="embed embed--folder">
+				<div class="embed embed--folder" class:embed--list={narrow}>
+					{#if narrow}
+						<!-- Drive's list header says "Title"; it's covered by our own label. -->
+						<p class="folder__label" aria-hidden="true">Subject</p>
+					{/if}
 					{#if narrow !== null}
 						<iframe
 							src="https://drive.google.com/embeddedfolderview?id=1be4chwo7CKO5FMtIEnk-M9HyczaV9zUb#{narrow
@@ -398,6 +402,29 @@
 		.embed:not(.embed--wide):not(.embed--expanded) {
 			height: 70dvh;
 		}
+	}
+	.embed--list {
+		position: relative;
+	}
+	@media (max-width: 640px) {
+		.embed.embed--list {
+			height: 30rem;
+		}
+	}
+	.embed--list iframe {
+		height: calc(100% + 2.4rem);
+		margin-top: -2.4rem;
+	}
+	.folder__label {
+		position: relative;
+		z-index: 1;
+		margin: 0;
+		padding: 0.7rem 1rem 0.6rem 1.25rem;
+		border-bottom: 1px solid #e0e0e0;
+		background: #fff;
+		color: #5f6368;
+		font-size: var(--text-xs);
+		font-weight: 600;
 	}
 	.embed:fullscreen {
 		border: 0;
