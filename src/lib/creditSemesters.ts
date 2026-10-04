@@ -48,6 +48,32 @@ export function creditSummaryForSemester(
 	});
 }
 
+export type SemesterCreditTotals = Record<CreditCategory, { have: number; required: number }>;
+
+// The active semester's totals, rollover included: the same numbers a member
+// sees on their dashboard. Admin views and exports use this so they agree.
+export function activeSemesterCreditTotals(
+	credits: Array<RecievedCredit | ExpandedCredit>,
+	user: RecievedUser,
+	semesters: RecievedCreditSemester[],
+	requirements?: RecievedCreditRequirement[]
+): SemesterCreditTotals {
+	const active = semesters.find((semester) => semester.active);
+	const previous = active?.rolloverFrom
+		? semesters.find((semester) => semester.id === active.rolloverFrom)
+		: undefined;
+	const summary =
+		active && user.member
+			? creditSummaryForSemester(credits, user, active, previous, requirements)
+			: creditCategories.map((type) => ({ type, earned: 0, rollover: 0, required: 0 }));
+	return Object.fromEntries(
+		summary.map((category) => [
+			category.type,
+			{ have: category.earned + category.rollover, required: category.required }
+		])
+	) as SemesterCreditTotals;
+}
+
 export async function getActiveCreditSemester(pb: {
 	collection: (name: string) => {
 		getFirstListItem: (filter: string, options?: object) => Promise<unknown>;

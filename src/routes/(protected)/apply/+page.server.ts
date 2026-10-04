@@ -7,8 +7,7 @@ import type Client from "pocketbase";
 import { z } from "zod";
 
 // Drafts can be blank or partial. Only the limits apply until submission.
-const draftAnswer = (max: number) =>
-	z.preprocess((a) => String(a ?? "").replace(/[^\x00-\xFF]/g, ""), z.string().max(max));
+const draftAnswer = (max: number) => z.preprocess((a) => String(a ?? ""), z.string().max(max));
 const InProgressApplicationSchema = z.object({
 	q1: draftAnswer(1000),
 	q2: draftAnswer(2000),

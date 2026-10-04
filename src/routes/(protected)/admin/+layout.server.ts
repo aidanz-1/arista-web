@@ -7,7 +7,7 @@ import type {
 	RecievedStrike,
 	RecievedUser
 } from "$lib/db_types.js";
-import { calculateCredits, calculateRequiredCredits } from "$lib/calculateCredits";
+import { activeSemesterCreditTotals } from "$lib/creditSemesters";
 import type { LayoutServerLoad } from "./$types";
 
 const DIRECTORY_PAGE_SIZES = [25, 50, 100, 150] as const;
@@ -84,15 +84,18 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 	}
 
 	const userQuery = { sort: "-created", filter: filters.join(" && "), requestKey: null };
-	const userPage = insufficientOnly
+	let userPage = insufficientOnly
 		? undefined
 		: await locals.pb.collection("users").getList(page, perPage, userQuery);
+	// A page past the end (from an old or edited link) shows the real last page.
+	if (userPage && page > userPage.totalPages && userPage.totalPages > 0) {
+		userPage = await locals.pb.collection("users").getList(userPage.totalPages, perPage, userQuery);
+	}
 	const candidateUsers = insufficientOnly
 		? (structuredClone(
 				(await locals.pb.collection("users").getFullList(userQuery)) as unknown
 			) as RecievedUser[])
 		: (structuredClone(userPage?.items as unknown) as RecievedUser[]);
-	const activeSemesterId = serializedSemesters.find((semester) => semester.active)?.id;
 
 	const candidateIds = candidateUsers.map((user) => user.id);
 	const candidateCreditGroups = candidateIds.length
@@ -112,18 +115,16 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 		creditsByUser.set(credit.user, [...(creditsByUser.get(credit.user) ?? []), credit]);
 	}
 
+	const totalsFor = (user: RecievedUser) =>
+		activeSemesterCreditTotals(
+			creditsByUser.get(user.id) ?? [],
+			user,
+			serializedSemesters,
+			serializedRequirements
+		);
 	const matchingUsers = insufficientOnly
 		? candidateUsers.filter((user) =>
-				(["event", "tutoring", "other"] as const).some(
-					(type) =>
-						calculateCredits(creditsByUser.get(user.id) ?? [], type) <
-						calculateRequiredCredits(
-							{ ...user, credits: creditsByUser.get(user.id) ?? [] } as OpenUser,
-							type,
-							serializedRequirements,
-							activeSemesterId
-						)
-				)
+				Object.values(totalsFor(user)).some((total) => total.have < total.required)
 			)
 		: candidateUsers;
 	const totalItems = insufficientOnly ? matchingUsers.length : (userPage?.totalItems ?? 0);
@@ -166,6 +167,7 @@ export const load: LayoutServerLoad = async ({ url, locals }) => {
 				...user,
 				email: emailByUser.get(user.id) ?? "",
 				credits: creditsByUser.get(user.id) ?? [],
+				semesterTotals: totalsFor(user),
 				strikes: strikesByUser.get(user.id) ?? []
 			}) as OpenUser
 	);

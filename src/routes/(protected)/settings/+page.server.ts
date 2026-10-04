@@ -14,7 +14,7 @@ const SettingsPageSchema = z
 	})
 	.refine((data) => data.newPassword === data.newPasswordConfirm, {
 		message: "Passwords don't match",
-		path: ["confirm"]
+		path: ["newPasswordConfirm"]
 	});
 
 const ProfileSchema = z.object({

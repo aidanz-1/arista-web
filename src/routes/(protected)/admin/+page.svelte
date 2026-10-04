@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { calculateCredits, calculateRequiredCredits } from "$lib/calculateCredits";
 	import calculateTotalStrikeWeight from "$lib/calculateTotalStrikeWeight";
 	import AdminSubnav from "$lib/components/AdminSubnav.svelte";
 	import type { RecievedUser } from "$lib/db_types";
@@ -26,10 +25,6 @@
 	let filterForm: HTMLFormElement;
 	let filterTimer: number | undefined;
 	let isFiltering = $state(false);
-	let activeSemesterId = $derived(data.creditSemesters.find((semester) => semester.active)?.id);
-	function requiredCredits(user: RecievedUser, type: "event" | "tutoring" | "other") {
-		return calculateRequiredCredits(user, type, data.creditRequirements ?? [], activeSemesterId);
-	}
 
 	// Seniors through freshmen for the current school year, plus last year's class.
 	const schoolYearEnd =
@@ -57,7 +52,9 @@
 	}
 
 	function csvCell(value: unknown) {
-		return `"${String(value ?? "").replaceAll('"', '""')}"`;
+		// A leading = + - @ makes spreadsheets run the cell as a formula.
+		const text = String(value ?? "").replace(/^[=+\-@\t\r]/, "'$&");
+		return `"${text.replaceAll('"', '""')}"`;
 	}
 
 	function exportCurrentPage() {
@@ -78,9 +75,9 @@
 			user.name,
 			user.email,
 			user.member ? "Member" : "Tutee",
-			calculateCredits(user.credits, "event"),
-			calculateCredits(user.credits, "tutoring"),
-			calculateCredits(user.credits, "other"),
+			user.semesterTotals?.event.have ?? 0,
+			user.semesterTotals?.tutoring.have ?? 0,
+			user.semesterTotals?.other.have ?? 0,
 			calculateTotalStrikeWeight(user.strikes),
 			user.committees.join(", ") || "none",
 			user.homeroom,
@@ -130,9 +127,9 @@
 <svelte:head><title>People | ARISTA admin</title></svelte:head>
 
 {#snippet credit(user: (typeof users)[number], type: "event" | "tutoring" | "other")}
-	{@const have = calculateCredits(user.credits, type)}
+	{@const have = user.semesterTotals?.[type]?.have ?? 0}
 	{#if user.member}
-		{@const need = requiredCredits(user, type)}
+		{@const need = user.semesterTotals?.[type]?.required ?? 0}
 		<span class="credit" class:credit--short={have < need}>{have}<span> / {need}</span></span>
 	{:else}
 		<span class="muted">–</span>

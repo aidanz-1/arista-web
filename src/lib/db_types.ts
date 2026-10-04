@@ -30,19 +30,24 @@ export const UserSchema = z.object({
 	adminSections: z.array(z.enum(["people", "crediting", "tutoring", "credits"])).optional()
 });
 
-export const EventSchema = z.object({
-	name: z.string().min(3).max(64),
-	description: z.string().max(4000),
-	location: z.string().max(256),
-	place: z.string().min(2).max(64),
-	intendedVolunteers: z.number().min(1).max(200),
-	start_time: z.coerce.date(),
-	end_time: z.coerce.date(),
-	multiplier: z.number().min(1).max(5).step(0.5).default(1),
-	signupStatus: z.boolean().default(false),
-	// signed_up: z.string().array(),
-	isComplete: z.boolean().default(false)
-});
+export const EventSchema = z
+	.object({
+		name: z.string().min(3).max(64),
+		description: z.string().max(4000),
+		location: z.string().max(256),
+		place: z.string().min(2).max(64),
+		intendedVolunteers: z.number().min(1).max(200),
+		start_time: z.coerce.date(),
+		end_time: z.coerce.date(),
+		multiplier: z.number().min(1).max(5).step(0.5).default(1),
+		signupStatus: z.boolean().default(false),
+		// signed_up: z.string().array(),
+		isComplete: z.boolean().default(false)
+	})
+	.refine((event) => event.end_time > event.start_time, {
+		message: "The event has to end after it starts.",
+		path: ["end_time"]
+	});
 
 export const CreditSchema = z.object({
 	credits: z.number(),
@@ -135,27 +140,9 @@ export const ExtraCurricularSchema = z.object({
 });
 
 export const ApplicationSchema = z.object({
-	q1: z.preprocess(
-		(a, ctx) =>
-			String(a)
-				.trim()
-				.replace(/[^\x00-\xFF]/g, ""),
-		z.string().min(2).max(1010)
-	), // remove unicode characters (tabs, emojis) to prevent miscount bug
-	q2: z.preprocess(
-		(a, ctx) =>
-			String(a)
-				.trim()
-				.replace(/[^\x00-\xFF]/g, ""),
-		z.string().min(2).max(2010)
-	),
-	q3: z.preprocess(
-		(a, ctx) =>
-			String(a)
-				.trim()
-				.replace(/[^\x00-\xFF]/g, ""),
-		z.string().min(2).max(2010)
-	),
+	q1: z.preprocess((a) => String(a ?? "").trim(), z.string().min(2).max(1010)),
+	q2: z.preprocess((a) => String(a ?? "").trim(), z.string().min(2).max(2010)),
+	q3: z.preprocess((a) => String(a ?? "").trim(), z.string().min(2).max(2010)),
 	extracurriculars: z.array(ExtraCurricularSchema).min(0).max(20).nullable()
 });
 

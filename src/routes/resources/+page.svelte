@@ -18,8 +18,7 @@
 		slides:
 			"https://docs.google.com/presentation/d/175Cbn57TR8R3gi4jjRrRfUrOjPmYV83ZF9zkv4qLWAY/edit?usp=sharing",
 		video: "https://drive.google.com/file/d/1VLqBZd2xlR37_qT4ZtN8xzGCrJArUhmF/view?usp=sharing",
-		submit:
-			"https://docs.google.com/forms/d/e/1FAIpQLScUyFV_Z2pCaSeNtmSIG4_pucW76iCUpqJywjdWoPVlKKXJSA/viewform?usp=sharing&ouid=110815166448053536110"
+		submit: "https://docs.google.com/forms/d/1AKZOa2zRA1-7KYSGudO5oQfU3oe-_DoGfoI5woJpzR8/viewform"
 	};
 
 	// Once the visible embed loads, mount the other sections too (hidden) so

@@ -1,9 +1,8 @@
 import { error } from "@sveltejs/kit";
-import { calculateCredits, calculateRequiredCredits } from "$lib/calculateCredits";
+import { activeSemesterCreditTotals } from "$lib/creditSemesters";
 import { canAccess } from "$lib/adminAccess";
 import type {
 	ExpandedCredit,
-	OpenUser,
 	RecievedCreditRequirement,
 	RecievedCreditSemester,
 	RecievedPublicUserData,
@@ -18,7 +17,9 @@ function quoteFilter(value: string) {
 }
 
 function csvCell(value: unknown) {
-	return `"${String(value ?? "").replaceAll('"', '""')}"`;
+	// A leading = + - @ makes spreadsheets run the cell as a formula.
+	const text = String(value ?? "").replace(/^[=+\-@\t\r]/, "'$&");
+	return `"${text.replaceAll('"', '""')}"`;
 }
 
 function chunks<T>(items: T[], size: number) {
@@ -64,32 +65,25 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		locals.pb.collection("creditRequirements").getFullList({ requestKey: null }),
 		locals.pb.collection("publicUsers").getFullList({ fields: "id,email", requestKey: null })
 	]);
-	const activeSemesterId = (semesters as unknown as RecievedCreditSemester[]).find(
-		(semester) => semester.active
-	)?.id;
 	const serializedRequirements = requirements as unknown as RecievedCreditRequirement[];
 	const userIds = users.map((user) => user.id);
 	const [creditGroups, strikeGroups] = await Promise.all([
 		Promise.all(
 			chunks(userIds, 50).map((ids) =>
-				locals.pb
-					.collection("credits")
-					.getFullList({
-						filter: ids.map((id) => `user="${id}"`).join(" || "),
-						fields: "user,type,credits,semester",
-						requestKey: null
-					})
+				locals.pb.collection("credits").getFullList({
+					filter: ids.map((id) => `user="${id}"`).join(" || "),
+					fields: "user,type,credits,semester",
+					requestKey: null
+				})
 			)
 		),
 		Promise.all(
 			chunks(userIds, 50).map((ids) =>
-				locals.pb
-					.collection("strikes")
-					.getFullList({
-						filter: ids.map((id) => `strikedUser="${id}"`).join(" || "),
-						fields: "strikedUser,weight",
-						requestKey: null
-					})
+				locals.pb.collection("strikes").getFullList({
+					filter: ids.map((id) => `strikedUser="${id}"`).join(" || "),
+					fields: "strikedUser,weight",
+					requestKey: null
+				})
 			)
 		)
 	]);
@@ -102,18 +96,21 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 			...(strikesByUser.get(strike.strikedUser) ?? []),
 			strike
 		]);
+	const serializedSemesters = semesters as unknown as RecievedCreditSemester[];
+	const totalsByUser = new Map(
+		users.map((user) => [
+			user.id,
+			activeSemesterCreditTotals(
+				creditsByUser.get(user.id) ?? [],
+				user,
+				serializedSemesters,
+				serializedRequirements
+			)
+		])
+	);
 	if (insufficientOnly) {
 		users = users.filter((user) =>
-			(["event", "tutoring", "other"] as const).some(
-				(type) =>
-					calculateCredits(creditsByUser.get(user.id) ?? [], type) <
-					calculateRequiredCredits(
-						{ ...user, credits: creditsByUser.get(user.id) ?? [] } as OpenUser,
-						type,
-						serializedRequirements,
-						activeSemesterId
-					)
-			)
+			Object.values(totalsByUser.get(user.id)!).some((total) => total.have < total.required)
 		);
 	}
 	const emailByUser = new Map(
@@ -136,39 +133,17 @@ export const GET: RequestHandler = async ({ locals, url }) => {
 		"OSIS"
 	];
 	const rows = users.map((user) => {
-		const credits = creditsByUser.get(user.id) ?? [];
-		const userWithCredits = { ...user, credits } as OpenUser;
+		const totals = totalsByUser.get(user.id)!;
 		return [
 			user.name,
 			emailByUser.get(user.id) ?? "",
 			user.member ? "Member" : "Tutee",
-			calculateCredits(credits, "event"),
-			user.member
-				? calculateRequiredCredits(
-						userWithCredits,
-						"event",
-						serializedRequirements,
-						activeSemesterId
-					)
-				: "N/A",
-			calculateCredits(credits, "tutoring"),
-			user.member
-				? calculateRequiredCredits(
-						userWithCredits,
-						"tutoring",
-						serializedRequirements,
-						activeSemesterId
-					)
-				: "N/A",
-			calculateCredits(credits, "other"),
-			user.member
-				? calculateRequiredCredits(
-						userWithCredits,
-						"other",
-						serializedRequirements,
-						activeSemesterId
-					)
-				: "N/A",
+			totals.event.have,
+			user.member ? totals.event.required : "N/A",
+			totals.tutoring.have,
+			user.member ? totals.tutoring.required : "N/A",
+			totals.other.have,
+			user.member ? totals.other.required : "N/A",
 			calculateTotalStrikeWeight(strikesByUser.get(user.id) ?? []),
 			user.committees.join(", ") || "none",
 			user.homeroom,

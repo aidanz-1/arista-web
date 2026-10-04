@@ -31,7 +31,8 @@ export const load = (async ({ locals, url }) => {
 			`(tutor.name~"${escapedSearch}" || tutee.name~"${escapedSearch}" || tutoringRequest.class~"${escapedSearch}" || tutoringRequest.subject~"${escapedSearch}" || tutoringRequest.topic~"${escapedSearch}")`
 		);
 	}
-	if (date) {
+	// Ignore a malformed date filter (like an edited link) instead of crashing.
+	if (date && /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date))) {
 		const start = new Date(`${date}T00:00:00`).toISOString();
 		const end = new Date(`${date}T23:59:59.999`).toISOString();
 		filters.push(

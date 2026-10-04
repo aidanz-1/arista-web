@@ -87,9 +87,10 @@ function isLineValid(fields: string[]): boolean {
 	const [email, credit_num, credit_type, manual_explanation] = fields;
 
 	if (!email) return false;
-	if (Number.isNaN(Number(credit_num))) {
-		return false;
-	}
+	// Same limits as crediting one person: a plain decimal from 0.01 to 100.
+	if (!/^\d+(\.\d+)?$/.test(credit_num)) return false;
+	const amount = Number(credit_num);
+	if (!(amount > 0 && amount <= 100)) return false;
 	if (!["event", "tutoring", "other"].includes(credit_type)) {
 		return false;
 	}
@@ -161,7 +162,7 @@ export const actions = {
 				fields,
 				request: locals.pb.collection("credits").create(
 					{
-						credits: parseFloat(credit_num),
+						credits: Number(credit_num),
 						manualExplanation: manual_explanation,
 						type: credit_type,
 						user: userId,

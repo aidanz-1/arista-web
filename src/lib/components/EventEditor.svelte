@@ -88,7 +88,9 @@
 			type="datetime-local"
 			value={toDateTimeLocalValue($form.end_time)}
 			max="2029-01-01T00:00"
+			aria-invalid={$errors.end_time ? "true" : undefined}
 		/>
+		{#if $errors.end_time}<span class="invalid">{$errors.end_time}</span>{/if}
 	</div>
 	<div class="editor__toggle editor__wide">
 		<div>
