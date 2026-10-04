@@ -4,38 +4,38 @@
 	"description": "Arista - Your academic community platform",
 	"start_url": "/",
 	"display": "standalone",
-	"background_color": "#000000",
-	"theme_color": "#000000",
+	"background_color": "#FCFBF8",
+	"theme_color": "#22397D",
 	"orientation": "portrait-primary",
 	"scope": "/",
 	"lang": "en",
 	"icons": [
 		{
-			"src": "/favicon-192x192.png",
+			"src": "/favicon-192x192.png?v=20260831",
 			"sizes": "192x192",
 			"type": "image/png",
 			"purpose": "any maskable"
 		},
 		{
-			"src": "/favicon-192x192.png",
+			"src": "/favicon-512x512.png?v=20260831",
 			"sizes": "512x512",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/apple-touch-icon-180x180.png",
+			"src": "/apple-touch-icon-180x180.png?v=20260831",
 			"sizes": "180x180",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/apple-touch-icon-152x152.png",
+			"src": "/apple-touch-icon-152x152.png?v=20260831",
 			"sizes": "152x152",
 			"type": "image/png",
 			"purpose": "any"
 		},
 		{
-			"src": "/apple-touch-icon-167x167.png",
+			"src": "/apple-touch-icon-167x167.png?v=20260831",
 			"sizes": "167x167",
 			"type": "image/png",
 			"purpose": "any"

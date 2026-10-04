@@ -1,12 +1,6 @@
 <!-- https://superforms.rocks/components#using-the-componentized-field-in-awesome-ways -->
-<script lang="ts" context="module">
-	import type { AnyZodObject } from "zod";
-	import type { Infer } from "sveltekit-superforms";
-	type T = Infer<AnyZodObject>;
-</script>
-
-<script lang="ts" generics="T extends Infer<AnyZodObject>">
-	import type { z } from "zod";
+<script lang="ts" generics="T extends Record<string, unknown>">
+	import { untrack } from "svelte";
 	import {
 		formFieldProxy,
 		type FormFieldProxy,
@@ -14,39 +8,76 @@
 		type FormPathLeaves
 	} from "sveltekit-superforms";
 
-	export let form: SuperForm<T, any>;
-	export let field: FormPathLeaves<T>;
-	export let label: string = "";
-	export let placeholder: string = "";
-	export let type: string = "text";
-	export let inputmode:
-		| "email"
-		| "search"
-		| "text"
-		| "none"
-		| "tel"
-		| "url"
-		| "numeric"
-		| "decimal" = "text";
+	interface Props {
+		form: SuperForm<T, any>;
+		field: FormPathLeaves<T>;
+		label?: string;
+		hint?: string;
+		placeholder?: string;
+		type?: string;
+		inputmode?: "email" | "search" | "text" | "none" | "tel" | "url" | "numeric" | "decimal";
+		[key: string]: any;
+	}
+
+	let {
+		form,
+		field,
+		label = "",
+		hint = "",
+		placeholder = "",
+		type = "text",
+		inputmode = "text",
+		...rest
+	}: Props = $props();
 
 	const { value, errors, constraints } = formFieldProxy(
-		form,
-		field
+		untrack(() => form),
+		untrack(() => field)
 	) satisfies FormFieldProxy<string>;
+
+	const uid = $props.id();
+	const id = `field-${String(untrack(() => field))}-${uid}`;
 </script>
 
-<label>
-	{label || field}<br />
+<div class="field">
+	<label for={id}>{label || field}</label>
 	<input
+		{id}
 		class="input"
 		name={field}
 		{...{ type }}
 		{inputmode}
 		aria-invalid={$errors ? "true" : undefined}
+		aria-describedby={[hint ? `${id}-hint` : "", $errors ? `${id}-error` : ""]
+			.filter(Boolean)
+			.join(" ") || undefined}
 		bind:value={$value}
 		{placeholder}
 		{...$constraints}
-		{...$$restProps}
+		{...rest}
 	/>
-</label>
-{#if $errors}<span class="invalid">{$errors}</span>{/if}
+	{#if $errors}
+		<span class="field-error" id="{id}-error">{$errors}</span>
+	{:else if hint}
+		<span class="field-hint" id="{id}-hint">{hint}</span>
+	{/if}
+</div>
+
+<style>
+	.field {
+		display: grid;
+		align-content: start;
+		gap: 0.4rem;
+	}
+	label {
+		color: var(--ink);
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	input[aria-invalid="true"] {
+		border-color: var(--danger) !important;
+	}
+	.field-error {
+		margin-top: 0;
+	}
+</style>

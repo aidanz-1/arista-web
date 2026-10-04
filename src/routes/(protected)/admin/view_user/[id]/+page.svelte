@@ -1,84 +1,265 @@
 <script lang="ts">
+	import { untrack } from "svelte";
 	import type { PageData } from "./$types";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import { enhance } from "$app/forms";
 	import { superForm, formFieldProxy } from "sveltekit-superforms";
 	import InputField from "$lib/components/InputField.svelte";
-	import calculateTotalStrikeWeight from "$lib/calculateTotalStrikeWeight";
-	import { CodeBlock, RadioGroup, RadioItem } from "@skeletonlabs/skeleton";
+	import { RadioGroup, RadioItem } from "$lib/skeleton-compat";
 	import StrikesDisplay from "$lib/components/StrikesDisplay.svelte";
-	import CreditsDisplay from "$lib/components/CreditsDisplay.svelte";
-	import type { ExpandedCredit, CommitteesSchema, RecievedUser } from "$lib/db_types";
+	import SemesterCreditPanel from "$lib/components/SemesterCreditPanel.svelte";
 
-	let user_id = $page.params.id;
-	export let data: PageData;
-	const strikeFormObj = superForm(data.strikeForm);
-	const creditFormObj = superForm(data.creditForm);
+	let user_id = page.params.id;
+	interface Props {
+		data: PageData;
+	}
+
+	let { data }: Props = $props();
+	const strikeFormObj = superForm(untrack(() => data.strikeForm));
+	const creditFormObj = superForm(untrack(() => data.creditForm));
 
 	const creditFormType = formFieldProxy(creditFormObj, "type").value;
 
-	$: full_user = data.users.filter((v) => v.id === user_id)[0];
+	let full_user = $derived(data.user);
+	const choiceResult = $derived(
+		(page.form ?? {}) as { choiceUpdated?: boolean; choiceError?: string }
+	);
 </script>
 
-<main class="container mx-auto p-8 space-y-8">
-	<h2 class="h2">Viewing: {full_user.name}</h2>
-	<h3 class="h3">Email: {full_user.email}</h3>
-	<h3 class="h3">{full_user.name} is a {full_user.is_tutee ? "tutee." : "ARISTA member."}</h3>
+<svelte:head><title>{full_user?.name ?? "Account"} | ARISTA admin</title></svelte:head>
 
-	{#if !full_user.is_tutee}
-		<CreditsDisplay credits={full_user.credits} user={full_user} />
-		<StrikesDisplay strikes={full_user.strikes} />
-		<form
-			class="card p-4 w-full text-token space-y-4"
-			method="POST"
-			action="?/credit_user"
-			use:enhance
-		>
-			<h3 class="h3">Credit {full_user.name} for:</h3>
-			<InputField
-				label="Enter the # of credits: "
-				placeholder="1"
-				field="credits"
-				form={creditFormObj}
-				type="number"
-				inputmode="decimal"
-				step="any"
-			/>
-			<InputField
-				label="What is this manual crediting for? Please provide an explanation."
-				placeholder="Tutee mistyped credit, last minute addition to event, etc..."
-				field="manualExplanation"
-				form={creditFormObj}
-			/>
+<main class="page page--tool view-user">
+	<a class="back" href="/admin">
+		<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
+		People
+	</a>
+	{#if full_user}
+		<header class="page-header">
 			<div>
-				<RadioGroup active="variant-filled-primary" hover="hover:variant-soft-primary">
-					<RadioItem bind:group={$creditFormType} name="type" value="event">event</RadioItem>
-					<RadioItem bind:group={$creditFormType} name="type" value="tutoring">tutoring</RadioItem>
-					<RadioItem bind:group={$creditFormType} name="type" value="other">other</RadioItem>
-				</RadioGroup>
+				<h1>{full_user.name}</h1>
+				<p class="view-user__meta">
+					{#if full_user.email}<a class="text-link" href="mailto:{full_user.email}"
+							>{full_user.email}</a
+						>{/if}
+					{#each [full_user.homeroom, full_user.graduationYear, full_user.osis ? `OSIS ${full_user.osis}` : ""].filter(Boolean) as detail}
+						<span>{detail}</span>
+					{/each}
+				</p>
+			</div>
+			<span class="badge" class:badge--success={full_user.member}
+				>{full_user.member ? "ARISTA member" : "Student account"}</span
+			>
+		</header>
+
+		{#if full_user.member}
+			<div class="view-user__records">
+				<SemesterCreditPanel
+					credits={full_user.credits}
+					user={full_user}
+					semesters={data.creditSemesters ?? []}
+					activeSemesterId={data.creditSemesters?.find((semester) => semester.active)?.id}
+					requirements={data.creditRequirements ?? []}
+				/>
+				<StrikesDisplay strikes={full_user.strikes} />
 			</div>
 
-			<button type="submit" class="btn variant-filled-secondary">Credit User</button>
-		</form>
-		<form
-			class="card p-4 w-full text-token space-y-4"
-			method="POST"
-			action="?/strike_user"
-			use:enhance
-		>
-			<h3 class="h3">Strike {full_user.name} for:</h3>
-			<InputField
-				label="Reason: "
-				placeholder="Skipping an event, not attending a mandatory meeting..."
-				field="reason"
-				form={strikeFormObj}
-			/>
-			<InputField
-				label="Weight: (as a positive, rational number)"
-				field="weight"
-				form={strikeFormObj}
-			/>
-			<button type="submit" class="btn variant-filled-secondary">Strike User</button>
-		</form>
+			<section class="focus panel" aria-labelledby="focus-title">
+				<div>
+					<h2 id="focus-title" class="section-title">Credit focus</h2>
+					<p class="muted">
+						Which category carries this member's bigger requirement this semester.
+					</p>
+				</div>
+				<form method="POST" action="?/set_credit_choice" use:enhance class="focus__form">
+					<div class="radio-group" role="group" aria-label="Credit focus">
+						<button
+							type="submit"
+							name="creditChoice"
+							value="false"
+							class="focus__option"
+							class:active={!full_user.creditChoice}
+							aria-pressed={!full_user.creditChoice}>More events</button
+						>
+						<button
+							type="submit"
+							name="creditChoice"
+							value="true"
+							class="focus__option"
+							class:active={full_user.creditChoice}
+							aria-pressed={full_user.creditChoice}>More tutoring</button
+						>
+					</div>
+					<p class="focus__status" aria-live="polite">
+						{#if choiceResult.choiceError}
+							<span class="field-error">{choiceResult.choiceError}</span>
+						{:else if choiceResult.choiceUpdated}
+							Saved.
+						{/if}
+					</p>
+				</form>
+			</section>
+
+			<section class="actions" aria-label="Record credit or a strike">
+				<form class="panel" method="POST" action="?/credit_user" use:enhance>
+					<h2 class="section-title">Add credit</h2>
+					<div class="actions__type">
+						<span class="field-label">Type</span>
+						<RadioGroup>
+							<RadioItem bind:group={$creditFormType} name="type" value="event">Event</RadioItem>
+							<RadioItem bind:group={$creditFormType} name="type" value="tutoring"
+								>Tutoring</RadioItem
+							>
+							<RadioItem bind:group={$creditFormType} name="type" value="other">Other</RadioItem>
+						</RadioGroup>
+					</div>
+					<InputField
+						label="Credits"
+						placeholder="1"
+						field="credits"
+						form={creditFormObj}
+						type="number"
+						inputmode="decimal"
+						step="any"
+					/>
+					<InputField
+						label="Reason"
+						placeholder="Late addition to the Oct 12 cleanup"
+						field="manualExplanation"
+						form={creditFormObj}
+					/>
+					<button type="submit" class="btn btn-primary">Add credit</button>
+				</form>
+				<form class="panel" method="POST" action="?/strike_user" use:enhance>
+					<h2 class="section-title">Add a strike</h2>
+					<InputField
+						label="Reason"
+						placeholder="Missed a required meeting"
+						field="reason"
+						form={strikeFormObj}
+					/>
+					<InputField label="Weight" field="weight" form={strikeFormObj} />
+					<button type="submit" class="btn btn-danger">Add strike</button>
+				</form>
+			</section>
+		{:else}
+			<div class="empty-state">
+				<h2>This is a student account, not a member.</h2>
+				<p>It can request tutoring, but it has no credits or strikes to manage.</p>
+			</div>
+		{/if}
+	{:else}
+		<div class="empty-state">
+			<h1>We couldn't find that account.</h1>
+			<p>It may have been deleted.</p>
+			<a class="btn btn-primary" href="/admin">Back to People</a>
+		</div>
 	{/if}
 </main>
+
+<style>
+	.back {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		min-height: 2.75rem;
+		margin: -0.5rem 0 0.75rem -0.4rem;
+		padding: 0 0.6rem 0 0.4rem;
+		border-radius: var(--radius-pill);
+		color: var(--muted);
+		font-size: var(--text-sm);
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.back:hover {
+		background: var(--wash);
+		color: var(--ink);
+	}
+	.back svg {
+		width: 1.1rem;
+		height: 1.1rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 2;
+	}
+	.view-user__meta {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.25rem 1rem;
+	}
+	.page-header p .text-link {
+		font-weight: 500;
+	}
+	.focus {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-top: 1.25rem;
+	}
+	.focus .muted {
+		margin: 0.25rem 0 0;
+		font-size: var(--text-sm);
+	}
+	.focus__form {
+		display: grid;
+		justify-items: end;
+		gap: 0.35rem;
+	}
+	.focus__option {
+		min-height: 2.25rem;
+		padding: 0.35rem 1rem;
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--muted);
+		font: inherit;
+		font-size: var(--text-sm);
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.focus__option.active {
+		background: var(--surface);
+		color: var(--ink);
+		box-shadow:
+			0 1px 2px rgb(22 39 90 / 12%),
+			0 0 0 1px var(--line);
+	}
+	.focus__status {
+		min-height: 1.1rem;
+		margin: 0;
+		color: var(--success);
+		font-size: var(--text-xs);
+		font-weight: 600;
+	}
+	.view-user__records {
+		display: grid;
+		gap: 1.25rem;
+	}
+	.actions {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1.25rem;
+		align-items: start;
+		margin-top: 1.25rem;
+	}
+	.actions form {
+		display: grid;
+		justify-items: start;
+		gap: 1rem;
+	}
+	.actions form > :global(*:not(.btn)) {
+		width: 100%;
+	}
+	.actions__type {
+		display: grid;
+		gap: 0.4rem;
+	}
+	@media (max-width: 760px) {
+		.actions {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

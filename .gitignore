@@ -2,6 +2,7 @@
 node_modules
 /build
 /.svelte-kit
+/.vercel
 /package
 .env
 .env.*
@@ -9,5 +10,28 @@ node_modules
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 db/
+local_pb/*.db
+local_pb/*.db-*
+local_pb/pb_data/
+local_pb/types.d.ts
 .vscode/
 .idea/
+
+# Never publish: local data, agent/tool files, internal notes
+local_pb/
+*.db
+*.db-shm
+*.db-wal
+pb_data/
+pb_migrations/
+.claude/
+.agents/
+.codex/
+artifacts/
+design-system/
+REDESIGN_PLAN.md
+REWRITE-SOURCE-GUIDE.md
+TEST_ACCOUNT.md
+# Full-size originals; the site uses the web-sized copies
+static/images/ec-2026.jpg
+static/images/ARISTAphoto2026.png

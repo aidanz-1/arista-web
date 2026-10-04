@@ -143,7 +143,9 @@ export async function updateTutoringRequestAlert(
 	});
 }
 
-export async function deleteTutoringRequestAlert(slackMessageTs: string | undefined): Promise<void> {
+export async function deleteTutoringRequestAlert(
+	slackMessageTs: string | undefined
+): Promise<void> {
 	const channel = env.SLACK_TUTORING_CHANNEL_ID;
 	if (!channel || !slackMessageTs) return;
 

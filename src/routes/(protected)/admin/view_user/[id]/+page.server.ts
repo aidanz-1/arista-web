@@ -1,135 +1,182 @@
-import { error, redirect } from "@sveltejs/kit";
-import { CreditSchema, EventSchema, StrikeSchema, type ExpandedEvent, type RecievedCredit, type RecievedEvent, type RecievedUser } from "$lib/db_types.js";
+import { error } from "@sveltejs/kit";
+import {
+	CreditSchema,
+	StrikeSchema,
+	type ExpandedCredit,
+	type RecievedStrike,
+	type RecievedUser
+} from "$lib/db_types.js";
 import type { PageServerLoad } from "./$types";
 import { isOnCommittee } from "$lib/isOnCommittee";
-import { z } from "zod";
-import type { Actions } from "./$types";
-import { fail, superValidate, setError } from "sveltekit-superforms";
-import { zod } from "sveltekit-superforms/adapters";
-import handleError from "$lib/handleError";
+import { canAccess } from "$lib/adminAccess";
+import { fail, superValidate } from "sveltekit-superforms";
+import { zod4 as zod } from "sveltekit-superforms/adapters";
+import { getActiveCreditSemester } from "$lib/creditSemesters";
 
-const ManualCreditSchema = CreditSchema.pick({ credits: true, manualExplanation: true, type: true }).required();
+const ManualCreditSchema = CreditSchema.pick({
+	credits: true,
+	manualExplanation: true,
+	type: true
+}).required();
 
 // Get the data, for page load
 export const load = (async ({ params, locals }) => {
-    const strikeForm = await superValidate(zod(StrikeSchema));
-    const creditForm = await superValidate(zod(ManualCreditSchema));
-    const user_id = params.id;
+	const strikeForm = await superValidate(zod(StrikeSchema));
+	const creditForm = await superValidate(zod(ManualCreditSchema));
+	const user_id = params.id;
 
-    // Unless you throw, always return { form } in load and form actions.
+	// Unless you throw, always return { form } in load and form actions.
 
-    if (!locals.user) {
-        error(401, "You are not logged in.");
-    }
+	if (!locals.user) {
+		error(401, "You are not logged in.");
+	}
 
-    if (!isOnCommittee(locals.user as RecievedUser, "admin") && !isOnCommittee(locals.user as RecievedUser, "operations")) {
-        error(401, "You are not a member of the admin or operations committee.");
-    }
+	if (!canAccess(locals.user as RecievedUser, "people")) {
+		error(401, "You don't have access to this part of the admin area.");
+	}
 
-    let user;
+	let user;
 
-    try {
-        user = await locals.pb.collection("users").getOne(user_id, { requestKey: null });
-        if (!user) {
-            error(401, `User with id of "${user_id}" does not exist.`);
-        }
-    } catch {
-        error(401, `User with id of "${user_id}" does not exist.`);
-    }
+	try {
+		user = await locals.pb.collection("users").getOne(user_id, { requestKey: null });
+		if (!user) {
+			error(401, `User with id of "${user_id}" does not exist.`);
+		}
+	} catch {
+		error(401, `User with id of "${user_id}" does not exist.`);
+	}
 
-    return {
-        user: user,
-        strikeForm,
-        creditForm
-    };
+	const [credits, strikes, publicProfile] = await Promise.all([
+		locals.pb.collection("credits").getFullList({ filter: `user="${user.id}"`, requestKey: null }),
+		locals.pb
+			.collection("strikes")
+			.getFullList({ filter: `strikedUser="${user.id}"`, requestKey: null }),
+		// Emails are hidden on the users collection; the public view has them.
+		locals.pb
+			.collection("publicUsers")
+			.getOne(user.id, { fields: "email", requestKey: null })
+			.catch(() => undefined)
+	]);
+
+	const fullUser = {
+		...(user as unknown as RecievedUser),
+		email:
+			(user as unknown as RecievedUser).email ||
+			(publicProfile as { email?: string } | undefined)?.email ||
+			"",
+		credits: credits as unknown as ExpandedCredit[],
+		strikes: strikes as unknown as RecievedStrike[]
+	};
+
+	return {
+		user: fullUser,
+		strikeForm,
+		creditForm
+	};
 }) satisfies PageServerLoad;
 
-
 export const actions = {
-    strike_user: async ({ request, locals, params }) => {
-        const form = await superValidate(request, zod(StrikeSchema));
-        if (!form.valid) {
-            return fail(400, { form });
-        }
-        const user_id = params.id;
+	set_credit_choice: async ({ request, locals, params }) => {
+		if (!isOnCommittee(locals.user as RecievedUser, "admin")) {
+			return fail(403, { choiceError: "Only admins can change a member's credit focus." });
+		}
+		const value = (await request.formData()).get("creditChoice");
+		if (value !== "true" && value !== "false") {
+			return fail(400, { choiceError: "Choose events or tutoring." });
+		}
+		try {
+			await locals.pb.collection("users").update(params.id, { creditChoice: value === "true" });
+		} catch (updateError) {
+			console.error(updateError);
+			return fail(400, { choiceError: "Couldn't save the credit focus. Try again." });
+		}
+		return { choiceUpdated: true };
+	},
+	strike_user: async ({ request, locals, params }) => {
+		const form = await superValidate(request, zod(StrikeSchema));
+		if (!form.valid) {
+			return fail(400, { form });
+		}
+		const user_id = params.id;
 
-        // Unless you throw, always return { form } in load and form actions.
+		// Unless you throw, always return { form } in load and form actions.
 
-        if (!locals.user) {
-            error(401, "You are not logged in.");
-        }
+		if (!locals.user) {
+			error(401, "You are not logged in.");
+		}
 
-        if (!isOnCommittee(locals.user as RecievedUser, "admin") && !isOnCommittee(locals.user as RecievedUser, "operations")) {
-            error(401, "You are not a member of the admin or operations committee.");
-        }
+		if (!canAccess(locals.user as RecievedUser, "people")) {
+			error(401, "You don't have access to this part of the admin area.");
+		}
 
-        let user;
+		let user;
 
-        try {
-            user = await locals.pb.collection("users").getOne(user_id, { requestKey: null });
-            if (!user) {
-                error(401, `User with id of "${user_id}" does not exist.`);
-            }
-        } catch {
-            error(401, `User with id of "${user_id}" does not exist.`);
-        }
+		try {
+			user = await locals.pb.collection("users").getOne(user_id, { requestKey: null });
+			if (!user) {
+				error(401, `User with id of "${user_id}" does not exist.`);
+			}
+		} catch {
+			error(401, `User with id of "${user_id}" does not exist.`);
+		}
 
-        const created_strike = await locals.pb.collection("strikes").create(
-            {
-                strikedUser: user.id,
-                reason: form.data.reason,
-                weight: form.data.weight
-            },
-            { requestKey: null } // requestKey is null here to avoid cancelled requests when successive requests are ran
-        );
+		const created_strike = await locals.pb.collection("strikes").create(
+			{
+				strikedUser: user.id,
+				reason: form.data.reason,
+				weight: form.data.weight
+			},
+			{ requestKey: null } // requestKey is null here to avoid cancelled requests when successive requests are ran
+		);
 
-        return {
-            user: user,
-            form
-        };
-    },
-    credit_user: async ({ request, locals, params }) => {
-        const form = await superValidate(request, zod(ManualCreditSchema));
-        if (!form.valid) {
-            return fail(400, { form });
-        }
-        const user_id = params.id;
+		return {
+			user: user,
+			form
+		};
+	},
+	credit_user: async ({ request, locals, params }) => {
+		const form = await superValidate(request, zod(ManualCreditSchema));
+		if (!form.valid) {
+			return fail(400, { form });
+		}
+		const user_id = params.id;
 
-        // Unless you throw, always return { form } in load and form actions.
+		// Unless you throw, always return { form } in load and form actions.
 
-        if (!locals.user) {
-            error(401, "You are not logged in.");
-        }
+		if (!locals.user) {
+			error(401, "You are not logged in.");
+		}
 
-        if (!isOnCommittee(locals.user as RecievedUser, "admin") && !isOnCommittee(locals.user as RecievedUser, "operations")) {
-            error(401, "You are not a member of the admin or operations committee.");
-        }
+		if (!canAccess(locals.user as RecievedUser, "people")) {
+			error(401, "You don't have access to this part of the admin area.");
+		}
 
-        let user;
+		let user;
 
-        try {
-            user = await locals.pb.collection("users").getOne(user_id, { requestKey: null });
-            if (!user) {
-                error(401, `User with id of "${user_id}" does not exist.`);
-            }
-        } catch {
-            error(401, `User with id of "${user_id}" does not exist.`);
-        }
+		try {
+			user = await locals.pb.collection("users").getOne(user_id, { requestKey: null });
+			if (!user) {
+				error(401, `User with id of "${user_id}" does not exist.`);
+			}
+		} catch {
+			error(401, `User with id of "${user_id}" does not exist.`);
+		}
 
-        await locals.pb.collection("credits").create(
-            {
-                credits: parseFloat(String(form.data.credits)),
-                manualExplanation: form.data.manualExplanation,
-                type: form.data.type,
-                user: user.id
-            },
-            { requestKey: null } // requestKey is null here to avoid cancelled requests when successive requests are ran
-        );
+		const activeSemester = await getActiveCreditSemester(locals.pb);
+		await locals.pb.collection("credits").create(
+			{
+				credits: parseFloat(String(form.data.credits)),
+				manualExplanation: form.data.manualExplanation,
+				type: form.data.type,
+				user: user.id,
+				semester: activeSemester.id
+			},
+			{ requestKey: null } // requestKey is null here to avoid cancelled requests when successive requests are ran
+		);
 
-        return {
-            user: user,
-            form
-        };
-    }
-
+		return {
+			user: user,
+			form
+		};
+	}
 };

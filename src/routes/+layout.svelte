@@ -1,33 +1,159 @@
 <script lang="ts">
 	import Navbar from "$lib/components/Navbar.svelte";
-	import LoadingScreen from "$lib/components/LoadingScreen.svelte";
-	import "../app.postcss";
-	import { AppShell, Modal } from "@skeletonlabs/skeleton";
-	import { initializeStores } from "@skeletonlabs/skeleton";
-	import { navigating } from "$app/stores";
+	import SiteFooter from "$lib/components/SiteFooter.svelte";
+	import Seo from "$lib/components/Seo.svelte";
+	import "../app.css";
+	import { AppShell, Modal } from "$lib/skeleton-compat";
+	import { initializeStores } from "$lib/skeleton-compat";
+	import { currentUser } from "$lib/pocketbase";
+	import {
+		accountThemeStorageKey,
+		activeThemeOverride,
+		publicThemePreference,
+		type PublicThemePreference
+	} from "$lib/theme";
+	import { navigating } from "$app/state";
+	import { page } from "$app/state";
+	import { onMount } from "svelte";
+	import { afterNavigate } from "$app/navigation";
+	import { dev } from "$app/environment";
+	import { inject as injectAnalytics } from "@vercel/analytics";
+	import { injectSpeedInsights } from "@vercel/speed-insights/sveltekit";
+	import type { LayoutData } from "./$types";
+
+	interface Props {
+		data: LayoutData;
+		children?: import("svelte").Snippet;
+	}
+
+	let { data, children }: Props = $props();
+	const isNavigating = $derived(!!navigating.to);
+	let systemThemeIsDark = $state(false);
+	const resolvedUser = $derived($currentUser ?? data.user);
+	const themePreference = $derived(resolvedUser?.themePreference ?? "system");
+	const visitorThemePreference = $derived($publicThemePreference);
+	const activeTheme = $derived($activeThemeOverride);
+
+	function applyTheme() {
+		if (typeof document === "undefined") return;
+		const isDark = activeTheme
+			? activeTheme === "dark"
+			: resolvedUser
+				? themePreference === "dark" || (themePreference === "system" && systemThemeIsDark)
+				: visitorThemePreference === "dark";
+		document.documentElement.classList.toggle("dark", isDark);
+		document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+	}
 
 	initializeStores();
+
+	// The page scrolls inside AppShell's main element, so SvelteKit's own scroll
+	// reset never touches it. Start every new page at the top; back/forward
+	// navigations are left alone so pages can restore where you were.
+	afterNavigate(({ type, to }) => {
+		if (type === "popstate" || to?.url.hash) return;
+		document.querySelector<HTMLElement>(".app-shell > main")?.scrollTo({ top: 0, left: 0 });
+	});
+
+	$effect(() => {
+		currentUser.set(data.user ?? undefined);
+	});
+
+	onMount(() => {
+		if (!dev && "serviceWorker" in navigator) {
+			void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+		}
+
+		if (data.user?.id) {
+			const savedAccountTheme = window.localStorage.getItem(accountThemeStorageKey(data.user.id));
+			if (savedAccountTheme === "light" || savedAccountTheme === "dark") {
+				activeThemeOverride.set(savedAccountTheme);
+			}
+		}
+
+		if (!dev) {
+			injectAnalytics({ framework: "sveltekit" });
+			injectSpeedInsights();
+		}
+
+		const savedPreference = window.localStorage.getItem("arista-public-theme");
+		if (savedPreference === "light" || savedPreference === "dark") {
+			publicThemePreference.set(savedPreference as PublicThemePreference);
+		}
+	});
+
+	$effect(() => {
+		if (typeof window === "undefined") return;
+		const media = window.matchMedia("(prefers-color-scheme: dark)");
+		const syncSystemTheme = () => (systemThemeIsDark = media.matches);
+		syncSystemTheme();
+		media.addEventListener("change", syncSystemTheme);
+		return () => media.removeEventListener("change", syncSystemTheme);
+	});
+
+	$effect(() => {
+		applyTheme();
+	});
 </script>
 
 <svelte:head>
-	<title>Stuyvesant ARISTA</title>
-	<meta name="description" content="ARISTA, an honor society, promotes scholarship, leadership, character, and service through school volunteering, external partnerships, and student tutoring." />
-
+	<meta name="theme-color" media="(prefers-color-scheme: light)" content="#fcfbf8" />
+	<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141c35" />
 </svelte:head>
+
+<Seo url={page.url} status={page.status} signedIn={!!data.user} />
 
 <Modal />
 
-<!-- Loading Screen -->
-{#if $navigating}
-	<LoadingScreen />
-{/if}
-
 <!-- App Shell -->
 <AppShell>
-	<svelte:fragment slot="header">
+	{#snippet header()}
 		<!-- App Bar -->
-		<Navbar />
-	</svelte:fragment>
+		<Navbar user={data.user} />
+	{/snippet}
 	<!-- Page Route Content -->
-	<slot />
+	{#key page.url.pathname}
+		<div class="route-content" aria-busy={isNavigating}>
+			{@render children?.()}
+		</div>
+	{/key}
+	<SiteFooter />
 </AppShell>
+
+<style>
+	.route-content {
+		flex: 1 0 auto;
+		min-width: 0;
+		animation: route-arrive var(--dur-3) var(--ease-out) both;
+	}
+	/* A thin flame line at the top while the next page loads. It waits 150ms so
+	 * fast navigations never flash it. */
+	.route-content[aria-busy="true"]::before {
+		position: fixed;
+		top: 0;
+		left: 0;
+		z-index: 60;
+		width: 100%;
+		height: 3px;
+		background: var(--flame);
+		content: "";
+		transform-origin: left;
+		animation: route-progress 1.4s var(--ease-out) 150ms both;
+	}
+	@keyframes route-arrive {
+		from {
+			opacity: 0;
+		}
+		to {
+			opacity: 1;
+		}
+	}
+	@keyframes route-progress {
+		from {
+			transform: scaleX(0);
+		}
+		to {
+			transform: scaleX(0.85);
+		}
+	}
+</style>

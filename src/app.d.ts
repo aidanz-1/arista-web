@@ -7,8 +7,9 @@ declare namespace App {
 	}
 	interface Locals {
 		pb: import("pocketbase").default;
-		user: import("pocketbase").default["authStore"]["model"];
+		user: import("$lib/db_types").RecievedUser | null;
 	}
 	// interface PageData {}
 	// interface Platform {}
 }
+declare module "@event-calendar/core";

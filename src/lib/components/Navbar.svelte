@@ -1,310 +1,548 @@
 <script lang="ts">
-	import { AppBar } from "@skeletonlabs/skeleton";
-	import { pb, currentUser } from "$lib/pocketbase";
-	import { LightSwitch, Avatar } from "@skeletonlabs/skeleton";
-	import { isOnCommittee } from "$lib/isOnCommittee";
+	import { currentUser } from "$lib/pocketbase";
+	import type { RecievedUser } from "$lib/db_types";
+	import { page } from "$app/state";
+	import { accountThemeStorageKey, activeThemeOverride, publicThemePreference } from "$lib/theme";
+	import { invalidateAll } from "$app/navigation";
+	import { fly, fade } from "svelte/transition";
+	import { cubicOut } from "svelte/easing";
+	import { displayName, firstName, initials } from "$lib/displayName";
+	import { hasAnyAdminAccess } from "$lib/adminAccess";
 
-	let mobileMenuOpen = false;
-	let resourcesDropdownOpen = false;
-	let mobileResourcesDropdownOpen = false;
-
-	function generateInitials(user: any | null) {
-		return !user?.name
-			? ""
-			: (user.name as string)
-					.split(" ")
-					.map((v: string) => v.substring(0, 1))
-					.join("");
+	interface Props {
+		user?: RecievedUser | null;
 	}
 
-	function toggleMobileMenu() {
-		mobileMenuOpen = !mobileMenuOpen;
+	let { user: serverUser = null }: Props = $props();
+	let activeUser = $derived($currentUser ?? serverUser);
+	const isDarkTheme = $derived(
+		$activeThemeOverride === "dark" ||
+			($activeThemeOverride === null &&
+				(activeUser?.themePreference === "dark" ||
+					(!activeUser && $publicThemePreference === "dark")))
+	);
+	let mobileMenuOpen = $state(false);
+	let themeSwitching = $state(false);
+	let menuButton: HTMLButtonElement | undefined = $state();
+
+	type NavLink = { href: string; label: string; match?: string[] };
+
+	const links = $derived.by<NavLink[]>(() => {
+		if (!activeUser) {
+			return [
+				{ href: "/about", label: "About" },
+				{
+					href: "/resources",
+					label: "Resources",
+					match: ["/resources", "/studyguides", "/freshman-resources", "/cramcentral"]
+				},
+				{ href: "/faq", label: "FAQ" }
+			];
+		}
+		const list: NavLink[] = [{ href: "/", label: "Home" }];
+		if (activeUser.member) list.push({ href: "/events", label: "Events" });
+		list.push({ href: "/tutoring", label: "Tutoring" });
+		list.push({
+			href: "/resources",
+			label: "Resources",
+			match: ["/resources", "/studyguides", "/freshman-resources", "/cramcentral"]
+		});
+		if (activeUser.member) list.push({ href: "/leaderboard", label: "Leaderboard" });
+		if (hasAnyAdminAccess(activeUser)) {
+			list.push({ href: "/admin", label: "Admin" });
+		}
+		if (!activeUser.member) {
+			// Student accounts keep the public pages close at hand.
+			list.push({ href: "/faq", label: "FAQ" }, { href: "/about", label: "About" });
+		}
+		return list;
+	});
+
+	function isActive(link: NavLink) {
+		const paths = link.match ?? [link.href];
+		return paths.some((href) =>
+			href === "/" ? page.url.pathname === href : page.url.pathname.startsWith(href)
+		);
 	}
 
-	function closeMobileMenu() {
+	function closeMenus() {
 		mobileMenuOpen = false;
 	}
 
-	function toggleResourcesDropdown(){
-		resourcesDropdownOpen = !resourcesDropdownOpen;
+	function closeAndRestoreFocus() {
+		mobileMenuOpen = false;
+		menuButton?.focus();
 	}
 
-	function toggleMobileResourcesDropdown() {
-		mobileResourcesDropdownOpen = !mobileResourcesDropdownOpen;
+	function onWindowKeydown(event: KeyboardEvent) {
+		if (event.key === "Escape" && mobileMenuOpen) closeAndRestoreFocus();
 	}
 
-	function closeDropdowns() {
-		resourcesDropdownOpen = false;
-		mobileResourcesDropdownOpen = false;
+	function beginThemeTransition() {
+		document.documentElement.classList.add("theme-transitioning");
+		window.setTimeout(() => document.documentElement.classList.remove("theme-transitioning"), 320);
 	}
+
+	function applyThemeImmediately(isDark: boolean) {
+		document.documentElement.classList.toggle("dark", isDark);
+		document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+	}
+
+	function toggleVisitorTheme() {
+		const nextPreference = document.documentElement.classList.contains("dark") ? "light" : "dark";
+		activeThemeOverride.set(nextPreference);
+		applyThemeImmediately(nextPreference === "dark");
+		window.localStorage.setItem("arista-public-theme", nextPreference);
+		publicThemePreference.set(nextPreference);
+	}
+
+	async function toggleTheme() {
+		themeSwitching = true;
+		window.setTimeout(() => (themeSwitching = false), 320);
+		beginThemeTransition();
+		if (!activeUser) {
+			toggleVisitorTheme();
+			return;
+		}
+
+		const wasDark = document.documentElement.classList.contains("dark");
+		const nextPreference = wasDark ? "light" : "dark";
+		activeThemeOverride.set(nextPreference);
+		window.localStorage.setItem(accountThemeStorageKey(activeUser.id), nextPreference);
+		applyThemeImmediately(!wasDark);
+		// Server-rendered sessions do not always seed PocketBase's browser store.
+		// Set it explicitly so the header and root theme use the same preference.
+		currentUser.set({ ...activeUser, themePreference: nextPreference });
+		try {
+			const body = new FormData();
+			body.set("themePreference", nextPreference);
+			const response = await fetch("/settings?/update_theme_preference", {
+				method: "POST",
+				body,
+				headers: { "x-sveltekit-action": "true" }
+			});
+			if (!response.ok) throw new Error("Could not save theme preference.");
+			await invalidateAll();
+		} catch {
+			// Keep the local preference applied if the account update is temporarily unavailable.
+			// A later toggle will retry the server update.
+		}
+	}
+
+	const themeLabel = $derived(isDarkTheme ? "Switch to light mode" : "Switch to dark mode");
 </script>
 
-<AppBar class="!pt-1 !pb-0.5 overflow-visible">
-	<svelte:fragment slot="lead">
-		<a href="/" class="py-2"><strong class="text-xl uppercase">ARISTA</strong></a>
-	</svelte:fragment>
-	<svelte:fragment slot="default">
-		<!-- Desktop Navigation -->
-		<div class="hidden md:flex items-center space-x-2 lg:space-x-3">
-			{#if $currentUser}
-				{#if $currentUser.is_tutee}
-					<a href="/tutoring" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md font-medium flex items-center h-10">Tutoring</a>
-				{:else}
-					<a href="/events" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md font-medium flex items-center h-10">Events</a>
-					<a href="/tutoring" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md font-medium flex items-center h-10">Tutor</a>
-					<a href="/leaderboard" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md font-medium flex items-center h-10">Leaderboard</a>
-				{/if}
-				{#if isOnCommittee($currentUser, "admin") || isOnCommittee($currentUser, "operations")}
-					<a href="/admin" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md font-medium flex items-center h-10">Admin</a>
-				{/if}
-			{/if}
-			
-			<!-- Resources Dropdown -->
-			<div class="relative">
-				<button
-					on:click={toggleResourcesDropdown}
-					class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors flex items-center gap-1 py-2 px-2 rounded-md font-medium h-10"
-					aria-expanded={resourcesDropdownOpen}
-					aria-haspopup="true"
+<svelte:window onkeydown={onWindowKeydown} />
+
+{#snippet themeIcon()}
+	<svg viewBox="0 0 24 24" aria-hidden="true">
+		{#if isDarkTheme}
+			<circle cx="12" cy="12" r="4" />
+			<path
+				d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"
+			/>
+		{:else}
+			<path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11Z" />
+		{/if}
+	</svg>
+{/snippet}
+
+<header class="site-header">
+	<div class="site-header__inner">
+		<a class="brand" href="/" aria-label="ARISTA home" onclick={closeMenus}>
+			<img class="brand__seal" src="/images/arista-seal.jpg" alt="" width="40" height="40" />
+			<span class="brand__name">ARISTA</span>
+		</a>
+
+		<nav class="desktop-nav" aria-label="Primary" data-sveltekit-preload-data="hover">
+			{#each links as link (link.href)}
+				<a
+					href={link.href}
+					class:active={isActive(link)}
+					aria-current={isActive(link) ? "page" : undefined}>{link.label}</a
 				>
-					Resources
-					<svg class="w-4 h-4 transition-transform duration-200 {resourcesDropdownOpen ? 'rotate-180' : ''}" 
-						 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-					</svg>
-				</button>
-				{#if resourcesDropdownOpen}
-					<!-- svelte-ignore a11y-click-events-have-key-events -->
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
-					<div 
-						class="fixed inset-0 z-40" 
-						on:click={closeDropdowns}
-					></div>
-					<div class="absolute left-0 top-full bg-surface-100-800-token shadow-lg rounded-lg border border-surface-300-600-token mt-1 py-2 min-w-[200px] z-50">
-						<a href="/studyguides" class="block px-4 py-3 hover:bg-surface-200-700-token transition-colors" on:click={closeDropdowns}>
-							<div class="font-medium">Study Guides</div>
-							<div class="text-sm text-surface-600-300-token">Academic resources</div>
-						</a>
-						<a href="/freshman-resources" class="block px-4 py-3 hover:bg-surface-200-700-token transition-colors" on:click={closeDropdowns}>
-							<div class="font-medium">Freshman Resources</div>
-							<div class="text-sm text-surface-600-300-token">Guides for new students</div>
-						</a>
-						<a href="/cramcentral" class="block px-4 py-3 hover:bg-surface-200-700-token transition-colors" on:click={closeDropdowns}>
-							<div class="font-medium">Cram Central</div>
-							<div class="text-sm text-surface-600-300-token">Test preparation</div>
-						</a>
-						<a href="/faq" class="block px-4 py-3 hover:bg-surface-200-700-token transition-colors" on:click={closeDropdowns}>
-							<div class="font-medium">FAQ</div>
-							<div class="text-sm text-surface-600-300-token">Common questions</div>
-						</a>
-						<a href="/annual-report" class="block px-4 py-3 hover:bg-surface-200-700-token transition-colors" on:click={closeDropdowns}>
-							<div class="font-medium">Annual Report</div>
-							<div class="text-sm text-surface-600-300-token">Yearly overview</div>
-						</a>
-					</div>
-				{/if}
-			</div>
-			
-		</div>
-	</svelte:fragment>
-	<svelte:fragment slot="trail">
-		<!-- Desktop User Actions -->
-		<div class="hidden md:flex items-center space-x-2">
-			{#if !$currentUser}
-				<a href="/register" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md flex items-center h-10">Register</a>
-				<a href="/login" class="hover:text-primary-500 hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md flex items-center h-10">Login</a>
-			{:else}
-				<a href="/settings" class="hover:bg-surface-200-700-token transition-colors py-2 px-2 rounded-md flex items-center h-10">
-					<Avatar initials={generateInitials($currentUser)} background="bg-primary-500" class="w-8" />
-				</a>
-			{/if}
-		</div>
-
-		<!-- Mobile Hamburger Button -->
-		<button
-			class="md:hidden p-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-			on:click={toggleMobileMenu}
-			aria-label="Toggle mobile menu"
-		>
-			<svg
-				class="w-6 h-6 transition-transform duration-200 {mobileMenuOpen ? 'rotate-90' : ''}"
-				fill="none"
-				stroke="currentColor"
-				viewBox="0 0 24 24"
-			>
-				{#if mobileMenuOpen}
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-				{:else}
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-				{/if}
-			</svg>
-		</button>
-	</svelte:fragment>
-</AppBar>
-
-<!-- Mobile Menu Overlay -->
-{#if mobileMenuOpen}
-	<div
-		class="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
-		on:click={closeMobileMenu}
-		role="button"
-		tabindex="0"
-		on:keydown={(e) => e.key === 'Escape' && closeMobileMenu()}
-	></div>
-{/if}
-
-<!-- Mobile Menu Panel -->
-<div
-	class="fixed top-0 right-0 h-full w-64 bg-surface-100-800-token shadow-xl transform transition-transform duration-300 ease-in-out z-50 md:hidden {mobileMenuOpen
-		? 'translate-x-0'
-		: 'translate-x-full'}"
->
-	<div class="flex flex-col h-full">
-		<!-- Mobile Menu Header -->
-		<div class="flex items-center justify-between p-4 border-b border-surface-300-600-token">
-			<strong class="text-lg uppercase">Menu</strong>
-			<button
-				on:click={closeMobileMenu}
-				class="p-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-				aria-label="Close menu"
-			>
-				<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-				</svg>
-			</button>
-		</div>
-
-		<!-- Mobile Menu Links -->
-		<nav class="flex-1 px-4 py-4 overflow-y-auto">
-			<div class="space-y-1">
-				{#if $currentUser}
-					{#if $currentUser.is_tutee}
-					<a
-							href="/tutoring"
-							class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-							on:click={closeMobileMenu}
-						>
-							Tutoring
-						</a>
-					{:else}
-					<a
-							href="/events"
-							class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-							on:click={closeMobileMenu}
-						>
-							Events
-						</a>
-						<a
-							href="/tutoring"
-							class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-							on:click={closeMobileMenu}
-						>
-							Tutor
-						</a>
-						<a
-							href="/leaderboard"
-							class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-							on:click={closeMobileMenu}
-						>
-							Leaderboard
-						</a>
-					{/if}
-					{#if isOnCommittee($currentUser, "admin") || isOnCommittee($currentUser, "operations")}
-					<a
-							href="/admin"
-							class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-							on:click={closeMobileMenu}
-						>
-							Admin
-						</a>
-					{/if}
-				{/if}
-				<!-- Mobile Resources Dropdown -->
-				<div>
-					<button
-						on:click={toggleMobileResourcesDropdown}
-						class="w-full text-left py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors flex justify-between items-center font-medium"
-						aria-expanded={mobileResourcesDropdownOpen}
-					>
-						<span>Resources</span>
-						<svg class="w-4 h-4 transition-transform duration-200 {mobileResourcesDropdownOpen ? 'rotate-180' : ''}" 
-							 fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-						</svg>
-					</button>
-					{#if mobileResourcesDropdownOpen}
-						<div class="pl-3 mt-1 space-y-1">
-							<a
-								href="/freshman-resources"
-								class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-								on:click={closeMobileMenu}
-							>
-								Freshman Resources
-							</a>
-
-							<a
-								href="/studyguides"
-								class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-								on:click={closeMobileMenu}
-							>
-								Study Guides
-							</a>
-							<a
-								href="/cramcentral"
-								class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-								on:click={closeMobileMenu}
-							>
-								Cram Central
-							</a>
-							<a
-								href="/faq"
-								class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-								on:click={closeMobileMenu}
-							>
-								FAQ
-							</a>
-							<a
-								href="/annual-report"
-								class="block py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-								on:click={closeMobileMenu}
-							>
-								Annual Report
-							</a>
-						</div>
-					{/if}
-				</div>
-			</div>
+			{/each}
 		</nav>
 
-		<!-- Mobile Menu Footer -->
-		<div class="border-t border-surface-300-600-token p-4">
-			{#if !$currentUser}
-				<div class="space-y-2">
-					<a
-						href="/register"
-						class="block w-full py-2.5 px-4 text-center bg-primary-500 text-white rounded-md hover:bg-primary-600 transition-colors font-medium"
-						on:click={closeMobileMenu}
-					>
-						Register
-					</a>
-					<a
-						href="/login"
-						class="block w-full py-2.5 px-4 text-center border border-primary-500 text-primary-500 rounded-md hover:bg-surface-200-700-token transition-colors font-medium"
-						on:click={closeMobileMenu}
-					>
-						Login
-					</a>
-				</div>
-			{:else}
-			<a
-					href="/settings"
-					class="flex items-center space-x-3 py-2.5 px-2 rounded-md hover:bg-surface-200-700-token transition-colors"
-					on:click={closeMobileMenu}
-				>
-					<Avatar initials={generateInitials($currentUser)} background="bg-primary-500" class="w-8" />
-					<span>Settings</span>
+		<div class="desktop-actions">
+			<button
+				type="button"
+				class="icon-button"
+				class:is-switching={themeSwitching}
+				onclick={toggleTheme}
+				aria-label={themeLabel}
+				title={themeLabel}
+			>
+				{@render themeIcon()}
+			</button>
+			{#if activeUser}
+				<a class="account-link" href="/settings" title="Account settings">
+					<span class="avatar" aria-hidden="true">{initials(activeUser)}</span>
+					<span class="account-link__name">{firstName(activeUser)}</span>
+					<span class="sr-only">Account settings</span>
 				</a>
+			{:else}
+				<a class="btn btn-ghost" href="/login">Sign in</a>
+				<a class="btn btn-primary" href="/register">Create account</a>
 			{/if}
 		</div>
+
+		<button
+			bind:this={menuButton}
+			type="button"
+			class="icon-button menu-toggle"
+			onclick={() => (mobileMenuOpen = !mobileMenuOpen)}
+			aria-expanded={mobileMenuOpen}
+			aria-controls="mobile-navigation"
+			aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+		>
+			<svg viewBox="0 0 24 24" aria-hidden="true" class:is-open={mobileMenuOpen}>
+				<path class="bar bar--top" d="M4 8h16" />
+				<path class="bar bar--bottom" d="M4 16h16" />
+			</svg>
+		</button>
 	</div>
-</div>
+</header>
+
+{#if mobileMenuOpen}
+	<button
+		class="mobile-scrim"
+		type="button"
+		tabindex="-1"
+		aria-label="Close menu"
+		onclick={closeAndRestoreFocus}
+		transition:fade={{ duration: 180 }}
+	></button>
+	<div
+		class="mobile-menu"
+		id="mobile-navigation"
+		transition:fly={{ y: -10, duration: 220, easing: cubicOut, opacity: 0 }}
+	>
+		<nav aria-label="Mobile" data-sveltekit-preload-data="hover">
+			{#each links as link (link.href)}
+				<a
+					href={link.href}
+					class:active={isActive(link)}
+					aria-current={isActive(link) ? "page" : undefined}
+					onclick={closeMenus}>{link.label}</a
+				>
+			{/each}
+		</nav>
+		<div class="mobile-menu__footer">
+			{#if activeUser}
+				<a class="mobile-account" href="/settings" onclick={closeMenus}>
+					<span class="avatar" aria-hidden="true">{initials(activeUser)}</span>
+					<span><strong>{displayName(activeUser)}</strong><small>Account settings</small></span>
+				</a>
+			{:else}
+				<a class="btn btn-primary" href="/register" onclick={closeMenus}>Create account</a>
+				<a class="btn" href="/login" onclick={closeMenus}>Sign in</a>
+			{/if}
+			<button
+				type="button"
+				class="icon-button"
+				class:is-switching={themeSwitching}
+				onclick={toggleTheme}
+				aria-label={themeLabel}
+				title={themeLabel}
+			>
+				{@render themeIcon()}
+			</button>
+		</div>
+	</div>
+{/if}
+
+<style>
+	.site-header {
+		position: sticky;
+		top: 0;
+		z-index: 40;
+		border-bottom: 1px solid var(--line);
+		background: color-mix(in srgb, var(--paper) 92%, transparent);
+		backdrop-filter: saturate(1.4) blur(14px);
+		-webkit-backdrop-filter: saturate(1.4) blur(14px);
+	}
+	.site-header__inner {
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: center;
+		gap: 2rem;
+		width: min(var(--tool-width), 100% - 2 * var(--gutter));
+		min-height: 4.25rem;
+		margin: 0 auto;
+	}
+
+	.brand {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.65rem;
+		min-height: 2.75rem;
+		color: var(--ink);
+		text-decoration: none;
+	}
+	.brand__seal {
+		width: 2.25rem;
+		height: 2.25rem;
+		border-radius: 50%;
+		object-fit: cover;
+	}
+	.brand__name {
+		font-family: var(--font-display);
+		font-size: 1.3rem;
+		font-variation-settings:
+			"SOFT" 100,
+			"WONK" 0;
+		font-weight: 600;
+		letter-spacing: 0.04em;
+		line-height: 1;
+	}
+
+	.desktop-nav {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+	}
+	.desktop-nav a {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.5rem;
+		padding: 0.4rem 0.85rem;
+		border-radius: var(--radius-pill);
+		color: var(--muted);
+		font-size: 0.9375rem;
+		font-weight: 600;
+		text-decoration: none;
+		transition:
+			color var(--dur-2) var(--ease-out),
+			background-color var(--dur-2) var(--ease-out);
+	}
+	.desktop-nav a:hover {
+		background: var(--wash);
+		color: var(--ink);
+	}
+	.desktop-nav a.active {
+		color: var(--ink);
+	}
+	/* A small flame under the current page: the torch, used once. */
+	.desktop-nav a.active::after {
+		position: absolute;
+		left: 50%;
+		bottom: 0.2rem;
+		width: 1rem;
+		height: 3px;
+		border-radius: 3px;
+		background: var(--flame);
+		content: "";
+		transform: translateX(-50%);
+	}
+
+	.desktop-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.icon-button {
+		display: inline-grid;
+		place-items: center;
+		width: 2.75rem;
+		height: 2.75rem;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--ink);
+		cursor: pointer;
+		transition:
+			background-color var(--dur-2) var(--ease-out),
+			transform var(--dur-1) var(--ease-out);
+	}
+	.icon-button:hover {
+		background: var(--wash);
+	}
+	.icon-button:active {
+		transform: scale(0.94);
+	}
+	.icon-button svg {
+		width: 1.2rem;
+		height: 1.2rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 1.75;
+	}
+	.icon-button.is-switching svg {
+		animation: theme-turn var(--dur-4) var(--ease-out);
+	}
+	@keyframes theme-turn {
+		from {
+			opacity: 0.2;
+			transform: rotate(-60deg) scale(0.8);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+
+	.account-link {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-height: 2.75rem;
+		padding: 0.25rem 0.85rem 0.25rem 0.3rem;
+		border-radius: var(--radius-pill);
+		color: var(--ink);
+		font-size: 0.9375rem;
+		font-weight: 600;
+		text-decoration: none;
+		transition: background-color var(--dur-2) var(--ease-out);
+	}
+	.account-link:hover {
+		background: var(--wash);
+	}
+	.account-link__name {
+		max-width: 9rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.avatar {
+		display: grid;
+		flex: 0 0 auto;
+		place-items: center;
+		width: 2.125rem;
+		height: 2.125rem;
+		border-radius: 50%;
+		background: var(--seal);
+		color: #fff;
+		font-size: 0.75rem;
+		font-weight: 700;
+		letter-spacing: 0.02em;
+	}
+	:global(.dark) .avatar {
+		background: var(--action);
+		color: var(--on-action);
+	}
+
+	.menu-toggle {
+		display: none;
+	}
+	.menu-toggle .bar {
+		transform-box: fill-box;
+		transform-origin: center;
+		transition: transform var(--dur-3) var(--ease-out);
+	}
+	.menu-toggle svg.is-open .bar--top {
+		transform: translateY(4px) rotate(45deg);
+	}
+	.menu-toggle svg.is-open .bar--bottom {
+		transform: translateY(-4px) rotate(-45deg);
+	}
+
+	.mobile-scrim,
+	.mobile-menu {
+		display: none;
+	}
+
+	@media (max-width: 860px) {
+		.site-header__inner {
+			grid-template-columns: 1fr auto;
+			gap: 0.75rem;
+			min-height: 4rem;
+		}
+		.desktop-nav,
+		.desktop-actions {
+			display: none;
+		}
+		.menu-toggle {
+			display: inline-grid;
+		}
+		.mobile-scrim {
+			position: fixed;
+			inset: 0;
+			z-index: 38;
+			display: block;
+			border: 0;
+			background: rgb(15 22 41 / 28%);
+		}
+		.mobile-menu {
+			position: fixed;
+			top: 4.5rem;
+			right: var(--gutter);
+			left: var(--gutter);
+			z-index: 39;
+			display: grid;
+			gap: 0.75rem;
+			max-height: calc(100dvh - 5.5rem);
+			padding: 0.75rem;
+			overflow: auto;
+			border: 1px solid var(--line);
+			border-radius: var(--radius-panel);
+			background: var(--surface);
+			box-shadow: var(--shadow-float);
+		}
+		.mobile-menu nav {
+			display: grid;
+		}
+		.mobile-menu nav a {
+			display: flex;
+			align-items: center;
+			min-height: 3rem;
+			padding: 0.5rem 0.85rem;
+			border-radius: var(--radius-field);
+			color: var(--ink);
+			font-family: var(--font-display);
+			font-size: 1.25rem;
+			font-weight: 550;
+			text-decoration: none;
+		}
+		.mobile-menu nav a:hover,
+		.mobile-menu nav a.active {
+			background: var(--wash);
+		}
+		.mobile-menu nav a.active::before {
+			width: 0.45rem;
+			height: 0.45rem;
+			margin-right: 0.6rem;
+			border-radius: 50%;
+			background: var(--flame);
+			content: "";
+		}
+		.mobile-menu__footer {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: center;
+			gap: 0.5rem;
+			padding-top: 0.75rem;
+			border-top: 1px solid var(--line);
+		}
+		.mobile-menu__footer .btn {
+			flex: 1;
+		}
+		.mobile-menu__footer .icon-button {
+			border-color: var(--line);
+		}
+		.mobile-account {
+			display: flex;
+			flex: 1;
+			align-items: center;
+			gap: 0.65rem;
+			min-height: 3rem;
+			padding: 0.25rem 0.5rem;
+			border-radius: var(--radius-field);
+			color: var(--ink);
+			text-decoration: none;
+		}
+		.mobile-account strong,
+		.mobile-account small {
+			display: block;
+		}
+		.mobile-account small {
+			color: var(--muted);
+			font-size: var(--text-sm);
+		}
+	}
+</style>

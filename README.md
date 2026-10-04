@@ -2,7 +2,7 @@
 
 ## Notes and Resources
 
-#### Members: Please do not hesistate to click on the links and read the documentation and guides for each of the technologies in use in this project. 
+#### Members: Please do not hesistate to click on the links and read the documentation and guides for each of the technologies in use in this project.
 
 This website is developed in [SvelteKit](https://kit.svelte.dev/) with [Typescript](https://www.typescriptlang.org/).
 
@@ -10,7 +10,7 @@ This website is developed in [SvelteKit](https://kit.svelte.dev/) with [Typescri
 
 ## Setup
 
-Make sure you have [nodejs](https://nodejs.org/en) and [git](https://git-scm.org/download) installed. 
+Make sure you have [nodejs](https://nodejs.org/en) and [git](https://git-scm.org/download) installed.
 
 For new members, installing and using [VScode](https://code.visualstudio.com/download) with the "Svelte for VS Code" and "Tailwind CSS IntelliSense" extensions is highly reccomended.
 
@@ -58,7 +58,7 @@ npm install
 ```
 
 2.  Set up the `.env`
-   Create a `.env` file. Contact Lenny for the contents of this file.
+    Create a `.env` file. Contact Lenny for the contents of this file.
 
 3.  Run the development server:
 
@@ -76,7 +76,7 @@ Before you start working, you will need to create a separate branch specific to 
 
 #### Naming Your Branch
 
-Name the branch something like `fix/xxx` or `feature/xxx` where `xxx` is a short description of the changes or feature 
+Name the branch something like `fix/xxx` or `feature/xxx` where `xxx` is a short description of the changes or feature
 you are attempting to add. For example `fix/email-login` would be a branch where you fix something specific to email login.
 
 #### Adding Your Branch
@@ -123,7 +123,7 @@ nothing to commit, working directory clean
     any outstanding files/commits and checkout main `git checkout main`
 
 2.  Create a branch off of `main` with git: `git checkout -B
-    branch/name-here` **Note:** Branch naming is important. Use a name like
+branch/name-here` **Note:** Branch naming is important. Use a name like
     `fix/short-fix-description` or `feature/short-feature-description`.
 
 3.  Edit your file(s) locally with the editor of your choice.
@@ -131,7 +131,7 @@ nothing to commit, working directory clean
 4.  Check your `git status` to see unstaged files.
 
 5.  Add your edited files: `git add path/to/filename.ext` You can also do: `git
-    add .` to add all unstaged files. Take care, though, because you can
+add .` to add all unstaged files. Take care, though, because you can
     accidentally add files you don't want added. Review your `git status` first.
 
 6.  Commit your edits. Refer to [Writing good commit messages](https://github.com/erlang/otp/wiki/writing-good-commit-messages).
@@ -151,16 +151,16 @@ In your web browser go to your repository fork's GitHub Page.
 4.  The title (also called the subject) of your PR should be descriptive of your
     changes and succinctly indicates what is being fixed.
 
-    -   Examples: `Add Test Cases to Bonfire Drop It` `Correct typo in Waypoint
-        Size Your Images`
+    - Examples: `Add Test Cases to Bonfire Drop It` `Correct typo in Waypoint
+Size Your Images`
 
 5.  In the body of your PR include a more detailed summary of the changes you
     made and why.
 
-    -   If the PR is meant to fix an existing bug/issue then, at the end of
-        your PR's description, append the keyword `closes` and #xxxx (where xxxx
-        is the issue number). Example: `closes #1337`. This tells GitHub to
-        close the existing issue, if the PR is merged.
+    - If the PR is meant to fix an existing bug/issue then, at the end of
+      your PR's description, append the keyword `closes` and #xxxx (where xxxx
+      is the issue number). Example: `closes #1337`. This tells GitHub to
+      close the existing issue, if the PR is merged.
 
 ### Next Steps
 
@@ -179,6 +179,7 @@ $ git status
 On branch main
 Your branch is up-to-date with 'origin/main'.
 ```
+
 If your aren't on `main`, resolve outstanding files / commits and checkout the `main` branch
 
 ```shell
@@ -195,7 +196,8 @@ This will pull down all of the changes to the official develop branch, without m
 
 3. Reinstall dependencies
 
-Over the past few weeks, many breaking changes have occurred involving this site's javascript dependencies. Make sure to re-run npm install. 
+Over the past few weeks, many breaking changes have occurred involving this site's javascript dependencies. Make sure to re-run npm install.
+
 ```shell
 $ npm install
 ```

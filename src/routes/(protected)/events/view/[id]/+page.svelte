@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { untrack } from "svelte";
+	import { preventDefault } from "svelte/legacy";
+
 	import type { PageData } from "./$types";
 	import { enhance, deserialize, applyAction } from "$app/forms";
 	import { isOnCommittee } from "$lib/isOnCommittee";
@@ -8,41 +11,50 @@
 	import { invalidateAll } from "$app/navigation";
 	import { superForm } from "sveltekit-superforms";
 	import EventEditor from "$lib/components/EventEditor.svelte";
-	import { getModalStore } from "@skeletonlabs/skeleton";
+	import { getModalStore } from "$lib/skeleton-compat";
 	import type { ActionResult } from "@sveltejs/kit";
 
-	import { type ModalSettings } from "@skeletonlabs/skeleton";
+	import { type ModalSettings } from "$lib/skeleton-compat";
 
 	const modalStore = getModalStore();
-	export let data: PageData;
-	let eventsCommitteeView: "credit" | "roster" = "credit";
-	let rosterCopyMessage = "";
+	interface Props {
+		data: PageData;
+	}
+
+	let { data }: Props = $props();
+	let isCreditingAll = $state(false);
+	let organizerView = $state<"credit" | "roster">("credit");
+	let rosterCopyMessage = $state("");
 	let rosterCopyTimer: ReturnType<typeof setTimeout> | undefined;
 
+	// Paste-ready lists for spreadsheets and emails. "Emails and names" is tab
+	// separated with no header, so it drops into two spreadsheet columns.
 	async function copyRoster(format: "names" | "emails" | "emails-and-names") {
 		const volunteers = data.event.expand?.signed_up ?? [];
 		if (volunteers.length === 0) return;
-
 		const text =
 			format === "names"
 				? volunteers.map((volunteer) => volunteer.name).join("\n")
 				: format === "emails"
 					? volunteers.map((volunteer) => volunteer.email).join("\n")
 					: volunteers.map((volunteer) => `${volunteer.email}\t${volunteer.name}`).join("\n");
-
 		try {
 			await navigator.clipboard.writeText(text);
 			rosterCopyMessage =
 				format === "emails-and-names"
-					? "Copied two spreadsheet columns."
-					: `Copied ${format}.`;
+					? `Copied ${volunteers.length} emails and names as two columns.`
+					: `Copied ${volunteers.length} ${format}.`;
 		} catch {
-			rosterCopyMessage = "Could not copy. Please try again.";
+			rosterCopyMessage =
+				"Couldn't copy. Check that the browser allows clipboard access, then try again.";
 		}
-
 		if (rosterCopyTimer) clearTimeout(rosterCopyTimer);
 		rosterCopyTimer = setTimeout(() => (rosterCopyMessage = ""), 2600);
 	}
+	let creditAllFeedback = $state("");
+	const uncreditedVolunteerCount = $derived(
+		data.event.signed_up.filter((userId) => !data.credited_user_ids.includes(userId)).length
+	);
 
 	async function giveCredits(event: Event, user_id: string) {
 		const formEl = event.target as HTMLFormElement;
@@ -55,9 +67,7 @@
 				credits: data.get("credits")
 			})
 		});
-		const responseData = await response.json();
-
-		// { success: true, errors: {} } object
+		if (!response.ok) return;
 
 		// reset form
 		formEl.reset();
@@ -66,23 +76,56 @@
 		await invalidateAll();
 	}
 
-	const formObj = superForm(data.update_form, {
-		invalidateAll: "force",
-		resetForm: false
-	});
+	function creditAllVolunteers(event: Event) {
+		const formEl = event.currentTarget as HTMLFormElement;
+		const credits = String(new FormData(formEl).get("credits") ?? "").trim();
+		creditAllFeedback = "";
+		const confirmCredit: ModalSettings = {
+			type: "confirm",
+			title: `Credit ${uncreditedVolunteerCount} volunteer${uncreditedVolunteerCount === 1 ? "" : "s"}?`,
+			body: `Each volunteer who hasn't been credited yet gets ${credits || "the entered"} event credit${credits === "1" ? "" : "s"}. Anyone already credited is skipped.`,
+			confirmLabel: "Add credits",
+			response: async (approved: boolean) => {
+				if (!approved || isCreditingAll) return;
+				isCreditingAll = true;
+				try {
+					const response = await fetch(`/events/view/${data.event.id}?/creditAllVolunteers`, {
+						method: "POST",
+						body: JSON.stringify({ credits }),
+						headers: { "content-type": "application/json" }
+					});
+					if (!response.ok) {
+						creditAllFeedback = "Could not credit volunteers. Check the amount and try again.";
+						return;
+					}
+					await invalidateAll();
+					creditAllFeedback = "Credits added for every eligible volunteer.";
+				} finally {
+					isCreditingAll = false;
+				}
+			}
+		};
+		modalStore.trigger(confirmCredit);
+	}
 
-	async function handleDeleteEvent(
-		event: SubmitEvent & { currentTarget: EventTarget & HTMLFormElement }
-	) {
+	const formObj = superForm(
+		untrack(() => data.update_form),
+		{
+			invalidateAll: "force",
+			resetForm: false
+		}
+	);
+
+	async function handleDeleteEvent(event: Event) {
 		const confirmDelete: ModalSettings = {
 			type: "confirm",
-			title: "Delete event",
-			body: "Are you sure you want to delete the event?",
+			title: "Delete event?",
+			body: "This removes the event and everyone's sign-ups. It can't be undone.",
+			confirmLabel: "Delete event",
+			danger: true,
 			response: async (r: boolean) => {
 				if (r) {
 					const fdata = new FormData();
-					console.log("Deleting event", event.currentTarget);
-					// @ts-ignore
 					const response = await fetch(`/events/view/${data.event.id}?/delete_event`, {
 						method: "POST",
 						body: fdata
@@ -102,167 +145,592 @@
 	}
 </script>
 
-<main class="container mx-auto p-8 space-y-8">
-	<section>
-		<h1 class="h1">{data.event.signupStatus ? "[Sign-Ups Closed] " : ""}{data.event.name} ({data.event.signed_up.length}/{data.event.intendedVolunteers} Volunteers)</h1>
+<svelte:head><title>{data.event.name} | ARISTA events</title></svelte:head>
 
+<main class="page page--tool event">
+	<a class="event__back" href="/events">
+		<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
+		All events
+	</a>
 
+	<div class="event__layout">
+		<article class="event__main">
+			<div class="event__badges">
+				{#if data.event.isComplete}
+					<span class="badge">Completed</span>
+				{:else if data.event.signupStatus}
+					<span class="badge badge--warning">Sign-ups closed</span>
+				{:else}
+					<span class="badge badge--success">Sign-ups open</span>
+				{/if}
+				{#if data.event.place}<span class="badge">{data.event.place}</span>{/if}
+			</div>
+			<h1>{data.event.name}</h1>
+			{#if data.event.description}
+				<p class="event__description">{data.event.description}</p>
+			{/if}
 
-		<p class="font-normal mt-2 text-lg">{data.event.description}</p>
-		{#if data.event.isComplete}
-			<aside class="alert variant-filled-success mt-2 mb-4">This event is already complete.</aside>
-		{/if}
-		<br />
-		<p> <strong>Located at: </strong> {data.event.location}</p>
-		<p> <strong> Place: </strong> {data.event.place}</p>
-		<p class=""> <strong>Date: </strong>
-			{format(data.event.start_time, "MM/dd/yyyy hh:mm a")} to {format(
-				data.event.end_time,
-				"MM/dd/yyyy hh:mm a"
-			)}
-		</p>
-		<br>
-		<p><strong>Intended Volunteers: </strong> {data.event.intendedVolunteers} People</p>
-		<p><strong>Currently Signed-Up: </strong> {data.event.signed_up.length} People</p>
-		<div class="mt-3">
-			<p>
-				Worth {calculateEventCredits(data.event)} credits, after applying a multiplier of
-				{data.event.multiplier}x
+			<dl class="event__facts">
+				<div>
+					<dt>When</dt>
+					<dd>
+						{format(data.event.start_time, "EEEE, MMMM d")}<br />
+						<span
+							>{format(data.event.start_time, "h:mm a")} to {format(
+								data.event.end_time,
+								"h:mm a"
+							)}</span
+						>
+					</dd>
+				</div>
+				<div>
+					<dt>Where</dt>
+					<dd>{data.event.location || "Location to be announced"}</dd>
+				</div>
+				<div>
+					<dt>Credit</dt>
+					<dd>
+						{calculateEventCredits(data.event)} event credit{calculateEventCredits(data.event) === 1
+							? ""
+							: "s"}
+						{#if data.event.multiplier !== 1}<br /><span>{data.event.multiplier}× multiplier</span
+							>{/if}
+					</dd>
+				</div>
+			</dl>
+		</article>
+
+		<aside class="event__signup panel">
+			<p class="event__count">
+				<strong>{data.event.signed_up.length}</strong>
+				<span>of {data.event.intendedVolunteers} volunteers signed up</span>
 			</p>
-		</div>
-		<br/>
-		{#if !data.event.isComplete}
-			{#if data.is_current_user_signed_up}
-				<h3 class="h3">You are signed up for this event.</h3>
+			<div
+				class="meter"
+				role="progressbar"
+				aria-label="Volunteers signed up"
+				aria-valuemin="0"
+				aria-valuemax={data.event.intendedVolunteers}
+				aria-valuenow={Math.min(data.event.signed_up.length, data.event.intendedVolunteers)}
+			>
+				<span
+					style:width="{data.event.intendedVolunteers
+						? Math.min(100, (data.event.signed_up.length / data.event.intendedVolunteers) * 100)
+						: 0}%"
+				></span>
+			</div>
+			{#if data.event.isComplete}
+				<p class="event__status">This event is over. Thanks to everyone who came.</p>
+			{:else if data.is_current_user_signed_up}
+				<p class="event__status event__status--yes">
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+					You're signed up.
+				</p>
 				<form method="POST" action="?/event_unsign_up" use:enhance>
-					<button type="submit" class="btn variant-outline-secondary">Leave event</button>
+					<button type="submit" class="btn btn-ghost event__leave">Leave this event</button>
 				</form>
 			{:else}
-				{#if !data.event.signupStatus}
-				<form method="POST" action="?/event_sign_up" use:enhance>
-					<button type="submit" class="btn variant-filled-secondary">Sign up</button>
-				</form>
-					{/if}
-			{/if}
-		{/if}
-
-		{#if isOnCommittee($currentUser, "events") && !data.event.isComplete}
-			<div class="card p-4 w-full text-token space-y-4 mt-4">
-				<hgroup>
-					<h3 class="h3">For Events Committee:</h3>
-					<p>
-						This event should give
-						<span class="font-bold underline"> {calculateEventCredits(data.event)} credits</span>,
-						barring any commutes or latenesses.
+				{#if data.event.signupStatus}
+					<p class="event__status">
+						The organizer has closed sign-ups. Only add yourself if they've asked you to.
 					</p>
-				</hgroup>
-				<div class="inline-flex w-full sm:w-auto rounded-container-token bg-surface-200-700-token p-1" role="tablist" aria-label="Events committee tools">
-					<button
-						class="btn btn-sm {eventsCommitteeView === 'credit' ? 'variant-filled-secondary' : 'variant-ghost'} flex-1 sm:flex-none"
-						type="button"
-						role="tab"
-						aria-selected={eventsCommitteeView === "credit"}
-						on:click={() => (eventsCommitteeView = "credit")}
-					>
-						Credit volunteers
-					</button>
-					<button
-						class="btn btn-sm {eventsCommitteeView === 'roster' ? 'variant-filled-secondary' : 'variant-ghost'} flex-1 sm:flex-none"
-						type="button"
-						role="tab"
-						aria-selected={eventsCommitteeView === "roster"}
-						on:click={() => (eventsCommitteeView = "roster")}
-					>
-						Volunteer roster ({data.event.signed_up.length})
-					</button>
-				</div>
+				{/if}
+				<form method="POST" action="?/event_sign_up" use:enhance>
+					<button type="submit" class="btn btn-primary btn-lg event__join">Sign up</button>
+				</form>
+			{/if}
+		</aside>
+	</div>
 
-				{#if eventsCommitteeView === "credit"}
-					{#if data.event.expand}
-						<div class="space-y-3" role="tabpanel">
-							{#each data.event.expand.signed_up as signed_up_user}
-								<div class="card p-4">
-									<p><b>{signed_up_user.name}</b></p>
-									<p>{signed_up_user.email}</p>
-									{#if data.credited_user_ids.includes(signed_up_user.id)}
-										<p>This user has already been credited.</p>
-									{:else}
-										<form
-											class="flex items-end"
-											on:submit|preventDefault={(e) => giveCredits(e, signed_up_user.id)}
-											method="POST"
-											action="?/giveCreditToUser"
-										>
-											<label for="credits">
-												Enter the # of credits:
-												<input
-													class="input p-2"
-													name="credits"
-													type="numeric"
-													value={calculateEventCredits(data.event)}
-												/>
-											</label>
-											<button type="submit" class="btn variant-outline-tertiary h-fit">Credit</button>
-										</form>
-									{/if}
-								</div>
-							{/each}
+	{#if isOnCommittee($currentUser, "events") && !data.event.isComplete}
+		<section class="organizer" aria-labelledby="organizer-title">
+			<header>
+				<h2 id="organizer-title">Run this event</h2>
+			</header>
+
+			<div class="organizer__tabs" role="tablist" aria-label="Organizer tools">
+				<button
+					type="button"
+					role="tab"
+					aria-selected={organizerView === "credit"}
+					class:active={organizerView === "credit"}
+					onclick={() => (organizerView = "credit")}>Credit volunteers</button
+				>
+				<button
+					type="button"
+					role="tab"
+					aria-selected={organizerView === "roster"}
+					class:active={organizerView === "roster"}
+					onclick={() => (organizerView = "roster")}
+					>Roster <span class="organizer__count">{data.event.signed_up.length}</span></button
+				>
+			</div>
+
+			{#if organizerView === "credit"}
+				<div class="organizer__panel" role="tabpanel">
+					<div class="organizer__bulk panel panel--wash">
+						<div>
+							<h3>Credit everyone at once</h3>
+							<p>
+								{uncreditedVolunteerCount} still to credit, {data.credited_user_ids.length} already credited.
+							</p>
+						</div>
+						<form onsubmit={preventDefault(creditAllVolunteers)}>
+							<label for="credit-all-amount">Credits each</label>
+							<input
+								id="credit-all-amount"
+								name="credits"
+								type="number"
+								min="0.01"
+								max="100"
+								step="0.01"
+								value={calculateEventCredits(data.event)}
+								required
+							/>
+							<button
+								type="submit"
+								class="btn btn-primary"
+								disabled={uncreditedVolunteerCount === 0 || isCreditingAll}
+							>
+								{isCreditingAll
+									? "Adding credits…"
+									: uncreditedVolunteerCount === 0
+										? "Everyone's credited"
+										: `Credit ${uncreditedVolunteerCount} volunteer${uncreditedVolunteerCount === 1 ? "" : "s"}`}
+							</button>
+						</form>
+						{#if creditAllFeedback}<p class="organizer__feedback" role="status">
+								{creditAllFeedback}
+							</p>{/if}
+					</div>
+
+					{#if data.event.expand?.signed_up?.length}
+						<div class="table-container">
+							<table class="table">
+								<thead>
+									<tr
+										><th scope="col">Volunteer</th><th scope="col">Email</th><th scope="col"
+											>Credit</th
+										></tr
+									>
+								</thead>
+								<tbody>
+									{#each data.event.expand.signed_up as signed_up_user}
+										<tr>
+											<td
+												><strong>{signed_up_user.name}</strong
+												>{#if signed_up_user.preferredName}<span class="muted">
+														({signed_up_user.preferredName})</span
+													>{/if}</td
+											>
+											<td class="muted">{signed_up_user.email}</td>
+											<td>
+												{#if data.credited_user_ids.includes(signed_up_user.id)}
+													<span class="badge badge--success">Credited</span>
+												{:else}
+													<form
+														class="organizer__credit"
+														onsubmit={preventDefault((e) => giveCredits(e, signed_up_user.id))}
+														method="POST"
+														action="?/giveCreditToUser"
+													>
+														<label class="sr-only" for={"credits-" + signed_up_user.id}
+															>Credits for {signed_up_user.name}</label
+														>
+														<input
+															id={"credits-" + signed_up_user.id}
+															name="credits"
+															type="number"
+															min="0.01"
+															max="100"
+															step="0.01"
+															value={calculateEventCredits(data.event)}
+														/>
+														<button type="submit" class="btn btn-sm">Credit</button>
+													</form>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
 						</div>
 					{:else}
-						<p class="text-surface-500-token">No volunteers have signed up yet.</p>
+						<p class="empty-state">No one has signed up yet.</p>
 					{/if}
-				{:else if data.event.expand}
-					<div class="flex flex-wrap gap-2">
-						<button class="btn btn-sm variant-outline-secondary" type="button" on:click={() => copyRoster("names")}>Copy names</button>
-						<button class="btn btn-sm variant-outline-secondary" type="button" on:click={() => copyRoster("emails")}>Copy emails</button>
-						<button class="btn btn-sm variant-filled-secondary" type="button" on:click={() => copyRoster("emails-and-names")}>Copy emails + names</button>
-						{#if rosterCopyMessage}
-							<p class="w-full text-sm text-success-500" aria-live="polite">{rosterCopyMessage}</p>
-						{/if}
-					</div>
-					<div class="overflow-x-auto rounded-container-token border border-surface-300-600-token" role="tabpanel">
-						<table class="w-full min-w-[32rem] text-left">
-							<thead class="bg-surface-200-700-token text-xs uppercase tracking-wide text-surface-500-token">
-								<tr>
-									<th scope="col" class="w-14 px-4 py-3 font-semibold">#</th>
-									<th scope="col" class="px-4 py-3 font-semibold">Name</th>
-									<th scope="col" class="px-4 py-3 font-semibold">Email</th>
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-surface-300-600-token">
-								{#each data.event.expand.signed_up as signed_up_user, index}
-									<tr class="transition-colors hover:bg-surface-100-800-token">
-										<td class="px-4 py-3 text-surface-500-token">{index + 1}</td>
-										<td class="px-4 py-3 font-semibold">{signed_up_user.name}</td>
-										<td class="px-4 py-3"><a class="anchor" href={`mailto:${signed_up_user.email}`}>{signed_up_user.email}</a></td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				{:else}
-					<p class="text-surface-500-token">No volunteers have signed up yet.</p>
-				{/if}
-				<form class="mt-3" method="POST" action="?/mark_event_as_completed" use:enhance>
-					<button type="submit" class="btn variant-filled-secondary">
-						Mark event as completed
-					</button>
+				</div>
+			{:else}
+				<div class="organizer__panel" role="tabpanel">
+					{#if data.event.expand?.signed_up?.length}
+						<div class="organizer__copy">
+							<button type="button" class="btn btn-sm" onclick={() => copyRoster("names")}
+								>Copy names</button
+							>
+							<button type="button" class="btn btn-sm" onclick={() => copyRoster("emails")}
+								>Copy emails</button
+							>
+							<button
+								type="button"
+								class="btn btn-sm btn-primary"
+								onclick={() => copyRoster("emails-and-names")}>Copy emails and names</button
+							>
+							<p class="organizer__feedback" aria-live="polite">{rosterCopyMessage}</p>
+						</div>
+						<div class="table-container">
+							<table class="table">
+								<thead>
+									<tr
+										><th scope="col" class="organizer__index">#</th><th scope="col">Name</th><th
+											scope="col">Email</th
+										></tr
+									>
+								</thead>
+								<tbody>
+									{#each data.event.expand.signed_up as volunteer, index (volunteer.id)}
+										<tr>
+											<td class="organizer__index muted">{index + 1}</td>
+											<td
+												><strong>{volunteer.name}</strong>{#if volunteer.preferredName}<span
+														class="muted"
+													>
+														({volunteer.preferredName})</span
+													>{/if}</td
+											>
+											<td
+												><a class="text-link" href={`mailto:${volunteer.email}`}
+													>{volunteer.email}</a
+												></td
+											>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{:else}
+						<p class="empty-state">No one has signed up yet.</p>
+					{/if}
+				</div>
+			{/if}
+
+			<div class="organizer__actions">
+				<form method="POST" action="?/mark_event_as_completed" use:enhance>
+					<button type="submit" class="btn btn-primary">Mark event complete</button>
 				</form>
 			</div>
 
-			<form method="POST" action="?/update_event" class="card mt-4 p-4 w-full text-token space-y-4">
-				<EventEditor {formObj} promptText="Update" />
-			</form>
-			{#if $currentUser?.id === data.event.event_owner || isOnCommittee($currentUser, "admin")}
-				<form
-					class="mt-4"
-					method="POST"
-					on:submit|preventDefault={handleDeleteEvent}
-					action="?/delete_event"
-				>
-					<button type="submit" class="btn variant-filled-error">Delete Event</button>
+			<details class="organizer__edit">
+				<summary>Edit event details</summary>
+				<form method="POST" action="?/update_event" class="panel">
+					<EventEditor {formObj} promptText="Update" />
 				</form>
+			</details>
+
+			{#if $currentUser?.id === data.event.event_owner || isOnCommittee($currentUser, "admin")}
+				<div class="organizer__danger">
+					<div>
+						<h3>Delete this event</h3>
+						<p>This removes the event and its sign-ups. It can't be undone.</p>
+					</div>
+					<form method="POST" onsubmit={preventDefault(handleDeleteEvent)} action="?/delete_event">
+						<button type="submit" class="btn btn-danger">Delete event</button>
+					</form>
+				</div>
 			{/if}
-		{/if}
-	</section>
+		</section>
+	{/if}
 </main>
+
+<style>
+	.event__back {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.25rem;
+		min-height: 2.75rem;
+		margin: -0.5rem 0 1rem -0.4rem;
+		padding: 0 0.6rem 0 0.4rem;
+		border-radius: var(--radius-pill);
+		color: var(--muted);
+		font-size: var(--text-sm);
+		font-weight: 600;
+		text-decoration: none;
+		transition:
+			background-color var(--dur-2) var(--ease-out),
+			color var(--dur-2) var(--ease-out);
+	}
+	.event__back:hover {
+		background: var(--wash);
+		color: var(--ink);
+	}
+	.event__back svg {
+		width: 1.1rem;
+		height: 1.1rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 2;
+	}
+	.event__layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+		gap: clamp(1.5rem, 4vw, 3.5rem);
+		align-items: start;
+	}
+	.event__badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.event__main h1 {
+		margin-top: 0.85rem;
+		font-size: clamp(2.25rem, 5vw, var(--text-4xl));
+		font-variation-settings:
+			"SOFT" 100,
+			"WONK" 0;
+		font-weight: 560;
+		line-height: 1.02;
+	}
+	.event__description {
+		max-width: 44rem;
+		margin: 1.1rem 0 0;
+		color: var(--muted);
+		font-size: var(--text-md);
+		line-height: 1.65;
+		white-space: pre-line;
+	}
+	.event__facts {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 1rem 2rem;
+		margin: 2rem 0 0;
+		padding-top: 1.5rem;
+		border-top: 1px solid var(--line);
+	}
+	.event__facts dt {
+		color: var(--muted);
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	.event__facts dd {
+		margin: 0.3rem 0 0;
+		font-weight: 600;
+		line-height: 1.45;
+	}
+	.event__facts dd span {
+		color: var(--muted);
+		font-weight: 400;
+	}
+
+	.event__signup {
+		position: sticky;
+		top: 5.5rem;
+		display: grid;
+		gap: 0.9rem;
+	}
+	.event__count {
+		display: grid;
+		gap: 0.15rem;
+		margin: 0;
+	}
+	.event__count strong {
+		font-family: var(--font-display);
+		font-size: var(--text-3xl);
+		font-variation-settings: "SOFT" 100;
+		font-weight: 600;
+		line-height: 1;
+		font-variant-numeric: tabular-nums;
+	}
+	.event__count span {
+		color: var(--muted);
+	}
+	.event__status {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin: 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+	.event__status--yes {
+		color: var(--success);
+		font-size: var(--text-base);
+		font-weight: 600;
+	}
+	.event__status svg {
+		width: 1.25rem;
+		height: 1.25rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 2.25;
+	}
+	.event__join,
+	.event__leave {
+		width: 100%;
+	}
+
+	.organizer {
+		display: grid;
+		gap: 1.25rem;
+		margin-top: clamp(3rem, 6vw, 4.5rem);
+		padding-top: clamp(2rem, 4vw, 3rem);
+		border-top: 1px solid var(--line);
+	}
+	.organizer h2 {
+		font-size: clamp(1.6rem, 3vw, var(--text-2xl));
+	}
+	.organizer h3 {
+		font-family: var(--font-text);
+		font-size: var(--text-base);
+		font-weight: 650;
+		letter-spacing: 0;
+	}
+	.organizer__bulk {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: end;
+		justify-content: space-between;
+		gap: 1rem 2rem;
+	}
+	.organizer__bulk p {
+		margin: 0.25rem 0 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+	.organizer__bulk form {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.organizer__bulk label {
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	.organizer__bulk input {
+		width: 6rem !important;
+	}
+	.organizer__feedback {
+		flex-basis: 100%;
+		margin: 0;
+		color: var(--success);
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	.organizer__tabs {
+		display: flex;
+		gap: 0.25rem;
+		border-bottom: 1px solid var(--line);
+	}
+	.organizer__tabs button {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		min-height: 2.75rem;
+		padding: 0.5rem 0.9rem;
+		border: 0;
+		background: transparent;
+		color: var(--muted);
+		font: inherit;
+		font-size: 0.9375rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.organizer__tabs button:hover,
+	.organizer__tabs button.active {
+		color: var(--ink);
+	}
+	.organizer__tabs button.active::after {
+		position: absolute;
+		right: 0.9rem;
+		bottom: -1px;
+		left: 0.9rem;
+		height: 2px;
+		border-radius: 2px;
+		background: var(--flame);
+		content: "";
+	}
+	.organizer__count {
+		display: inline-grid;
+		place-items: center;
+		min-width: 1.4rem;
+		height: 1.4rem;
+		padding: 0 0.35rem;
+		border-radius: var(--radius-pill);
+		background: var(--wash);
+		color: var(--ink);
+		font-size: var(--text-xs);
+		font-variant-numeric: tabular-nums;
+	}
+	.organizer__panel {
+		display: grid;
+		gap: 1rem;
+	}
+	.organizer__copy {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.organizer__copy .organizer__feedback {
+		flex-basis: 100%;
+		min-height: 1.25rem;
+	}
+	.organizer__index {
+		width: 3.5rem;
+		font-variant-numeric: tabular-nums;
+	}
+	.organizer__credit {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.organizer__credit input {
+		width: 5rem !important;
+		min-height: 2.25rem !important;
+		padding: 0.35rem 0.55rem !important;
+	}
+	.organizer__edit summary {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.75rem;
+		color: var(--link);
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.organizer__edit form {
+		margin-top: 0.75rem;
+	}
+	.organizer__danger {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-top: 1rem;
+		padding: 1.1rem 1.25rem;
+		border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line));
+		border-radius: var(--radius-panel);
+	}
+	.organizer__danger p {
+		margin: 0.2rem 0 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+
+	@media (max-width: 900px) {
+		.event__layout {
+			grid-template-columns: 1fr;
+		}
+		.event__signup {
+			position: static;
+		}
+	}
+	@media (max-width: 640px) {
+		.event__facts {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

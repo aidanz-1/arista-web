@@ -1,96 +1,147 @@
 <script lang="ts">
+	import { untrack } from "svelte";
+	import { applyAction, enhance } from "$app/forms";
 	import { superForm } from "sveltekit-superforms";
 	import type { PageData } from "./$types";
 	import ErrorComponent from "$lib/components/ErrorComponent.svelte";
 	import InputField from "$lib/components/InputField.svelte";
-	import { SlideToggle } from "@skeletonlabs/skeleton";
-	import SuperDebug from "sveltekit-superforms";
-	import { page } from "$app/stores";
+	import AuthLayout from "$lib/components/AuthLayout.svelte";
+	import { page } from "$app/state";
 
-	let message: string;
-	$: message = $page.url.searchParams.get("message") ?? "";
+	let message: string = $derived(page.url.searchParams.get("message") ?? "");
+	let loginHref = $derived.by(() => {
+		const redirectTo = page.url.searchParams.get("redirectTo");
+		return redirectTo ? `/login?redirectTo=${encodeURIComponent(redirectTo)}` : "/login";
+	});
 
-	export let data: PageData;
-	const formObj = superForm(data.form);
-	const { form, errors, constraints } = formObj;
+	interface Props {
+		data: PageData;
+	}
+
+	let { data }: Props = $props();
+	const formObj = superForm(untrack(() => data.form));
+	const { errors, form } = formObj;
+
+	// Homerooms are a digit and two letters (5JA). Format as the student types.
+	$effect(() => {
+		const raw = String($form.homeroom ?? "");
+		const digit = raw.match(/[0-9]/)?.[0] ?? "";
+		const letters = raw
+			.slice(raw.indexOf(digit) + 1 || 0)
+			.replace(/[^a-zA-Z]/g, "")
+			.toUpperCase()
+			.slice(0, 2);
+		const formatted = digit ? digit + letters : "";
+		if (formatted !== raw) $form.homeroom = formatted;
+	});
+	let submitting = $state(false);
 </script>
 
-<main class="container mx-auto p-8 space-y-8">
-	<!-- <SuperDebug data={{ $form, $errors }} /> -->
+<svelte:head><title>Create an account | ARISTA</title></svelte:head>
 
-	<hgroup>
-		<h1 class="h1">Register</h1>
-		<p>Register to ARISTA with your Stuy.edu email!</p>
-	</hgroup>
-
+<AuthLayout title="Create your account.">
 	{#if message}
-		<aside class="alert variant-filled-warning mb-4">
-			<b>{message}</b>
-		</aside>
+		<p class="notice">{message}</p>
 	{/if}
 
 	<ErrorComponent errors={$errors} />
 
-	<form method="POST" class="card p-4 w-full text-token space-y-4">
-		<InputField form={formObj} field="name" label="Enter your name:" placeholder="John Doe" />
-
-		<!-- <label for="is_tutee">
-			Please select whether you are looking to be tutored <b>or</b> are an active ARISTA member.
-			<br />
-			<SlideToggle
-				name="is_tutee"
-				bind:checked={$form.is_tutee}
-				active="bg-primary-500 dark:bg-primary-500"
-				{...$constraints.is_tutee}
-			>
-				{$form.is_tutee
-					? "I'm not an ARISTA member and I'm here to be tutored."
-					: "I am an accepted ARISTA member."}
-			</SlideToggle>
-		</label> -->
-
-		<InputField form={formObj} field="homeroom" label="Enter your homeroom:" placeholder="3JJ" />
+	<form
+		method="POST"
+		use:enhance={() => {
+			submitting = true;
+			return async ({ result }) => {
+				await applyAction(result);
+				submitting = false;
+			};
+		}}
+	>
+		<InputField form={formObj} field="name" label="Full name" autocomplete="name" />
 		<InputField
 			form={formObj}
-			field="graduationYear"
-			label="Enter your graduation year:"
-			inputmode="numeric"
-			placeholder={String(new Date().getFullYear() + 3)}
+			field="preferredName"
+			label="Preferred first name (optional)"
+			autocomplete="given-name"
 		/>
+
+		<div class="field-row">
+			<InputField
+				form={formObj}
+				field="homeroom"
+				label="Homeroom"
+				placeholder="5JA"
+				maxlength="3"
+				autocapitalize="characters"
+				autocomplete="off"
+			/>
+			<InputField
+				form={formObj}
+				field="graduationYear"
+				label="Graduation year"
+				inputmode="numeric"
+				placeholder={String(new Date().getFullYear() + 3)}
+			/>
+		</div>
 		<InputField
 			form={formObj}
 			field="osis"
-			label="Enter your osis:"
+			label="OSIS number"
+			hint="The 9-digit number on your student ID."
 			inputmode="numeric"
-			placeholder="123456789"
+			maxlength="9"
+			pattern="[0-9]{9}"
 		/>
 
 		<InputField
 			form={formObj}
 			field="email"
-			label="Enter your email (@stuy.edu):"
-			placeholder="email@stuy.edu"
+			label="Email"
+			placeholder="you@stuy.edu"
 			type="email"
+			autocomplete="email"
 		/>
 
 		<InputField
 			form={formObj}
 			field="password"
-			label="Enter a strong password:"
-			placeholder="a_long_and_secure_password"
+			label="Password"
+			hint="At least 6 characters."
 			type="password"
+			autocomplete="new-password"
 		/>
 
 		<InputField
 			form={formObj}
 			field="passwordConfirm"
-			label="Enter the password again:"
+			label="Confirm password"
 			type="password"
+			autocomplete="new-password"
 		/>
 
-		<input type="submit" class="btn variant-filled" value="Register" />
-		<p id="suggest_login">
-			Already have an account? <a href="/login" class="anchor">Login here.</a>
+		<button type="submit" class="btn btn-primary btn-lg" disabled={submitting}>
+			{submitting ? "Creating account…" : "Create account"}
+		</button>
+		<p class="auth-alt">
+			Already have an account? <a href={loginHref} class="text-link">Sign in</a>
 		</p>
 	</form>
-</main>
+</AuthLayout>
+
+<style>
+	.field-row {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+	}
+	form .btn-lg {
+		margin-top: 0.4rem;
+	}
+	.notice {
+		margin: 2rem 0 0;
+	}
+	@media (max-width: 420px) {
+		.field-row {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

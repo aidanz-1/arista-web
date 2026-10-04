@@ -1,48 +1,91 @@
 <script lang="ts">
+	import { untrack } from "svelte";
+	import { applyAction, enhance } from "$app/forms";
 	import { superForm } from "sveltekit-superforms";
 	import type { PageData } from "./$types";
 	import ErrorComponent from "$lib/components/ErrorComponent.svelte";
 	import InputField from "$lib/components/InputField.svelte";
-	import { page } from "$app/stores";
+	import AuthLayout from "$lib/components/AuthLayout.svelte";
+	import { page } from "$app/state";
 
-	let message: string;
-	$: message = $page.url.searchParams.get("message") ?? "";
+	let message: string = $derived(page.url.searchParams.get("message") ?? "");
+	// Carry the destination into registration so new students land where they meant to go.
+	let registerHref = $derived.by(() => {
+		const redirectTo = page.url.searchParams.get("redirectTo");
+		return redirectTo ? `/register?redirectTo=${encodeURIComponent(redirectTo)}` : "/register";
+	});
 
-	export let data: PageData;
-	const formObj = superForm(data.form);
-	const { form, errors, constraints } = formObj;
+	interface Props {
+		data: PageData;
+	}
+
+	let { data }: Props = $props();
+	const formObj = superForm(untrack(() => data.form));
+	const { errors } = formObj;
+	let submitting = $state(false);
 </script>
 
-<main class="container mx-auto p-8 space-y-8">
-	<hgroup>
-		<h1 class="h1">Sign in</h1>
-		<p>Sign in to ARISTA with your Stuy.edu email!</p>
-	</hgroup>
+<svelte:head><title>Sign in | ARISTA</title></svelte:head>
 
+<AuthLayout title="Welcome back.">
 	{#if message}
-		<aside class="alert variant-filled-warning mb-4">
-			<b>{message}</b>
-		</aside>
+		<p class="notice">{message}</p>
 	{/if}
 	<ErrorComponent errors={$errors} />
 
-	<form method="POST" class="card p-4 w-full text-token space-y-4">
+	<form
+		method="POST"
+		use:enhance={() => {
+			submitting = true;
+			return async ({ result }) => {
+				await applyAction(result);
+				submitting = false;
+			};
+		}}
+	>
 		<InputField
 			form={formObj}
 			field="email"
-			label="Enter your email:"
-			placeholder="email@stuy.edu"
+			label="Email"
+			placeholder="you@stuy.edu"
 			type="email"
+			autocomplete="email"
 		/>
 
-		<InputField form={formObj} field="password" label="Enter your password:" type="password" />
+		<div class="password-field">
+			<InputField
+				form={formObj}
+				field="password"
+				label="Password"
+				type="password"
+				autocomplete="current-password"
+			/>
+			<a href="/forgot-password" class="text-link forgot">Forgot password?</a>
+		</div>
 
-		<input type="submit" class="btn variant-filled" value="Log in" />
-		<p id="suggest_register">
-			Don't have an account? <a href="/register" class="anchor">Register for one.</a>
-		</p>
-		<p id="forgot_password">
-			<a href="/forgot-password" class="anchor">Forgot your password?</a>
+		<button type="submit" class="btn btn-primary btn-lg" disabled={submitting}>
+			{submitting ? "Signing in…" : "Sign in"}
+		</button>
+		<p class="auth-alt">
+			New to ARISTA? <a href={registerHref} class="text-link">Create an account</a>
 		</p>
 	</form>
-</main>
+</AuthLayout>
+
+<style>
+	.password-field {
+		position: relative;
+	}
+	.forgot {
+		position: absolute;
+		top: 0;
+		right: 0;
+		font-size: var(--text-sm);
+	}
+	form .btn-lg {
+		margin-top: 0.4rem;
+	}
+	.notice {
+		margin: 2rem 0 0;
+	}
+</style>

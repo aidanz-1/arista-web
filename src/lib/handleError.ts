@@ -1,10 +1,8 @@
 import type { SuperValidated } from "sveltekit-superforms";
 import { setError } from "sveltekit-superforms";
-import { z } from "zod";
-import type { Infer } from 'sveltekit-superforms';
 import { error } from "@sveltejs/kit";
 
-export default function handleError(error: unknown, form: SuperValidated<Infer<z.AnyZodObject>>) {
+export default function handleError(error: unknown, form: SuperValidated<Record<string, unknown>>) {
 	if (typeof error === "string") {
 		return setError(form, "", error);
 	} else if (error instanceof Error) {

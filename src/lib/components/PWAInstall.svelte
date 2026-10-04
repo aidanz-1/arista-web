@@ -2,10 +2,10 @@
 	import { onMount } from "svelte";
 	import { browser } from "$app/environment";
 
-	let showInstallPrompt = false;
-	let deferredPrompt: any = null;
-	let isIOS = false;
-	let isAndroid = false;
+	let showInstallPrompt = $state(false);
+	let deferredPrompt: any = $state(null);
+	let isIOS = $state(false);
+	let isAndroid = $state(false);
 	let isStandalone = false;
 	let isMobile = false;
 
@@ -68,48 +68,69 @@
 </script>
 
 {#if showInstallPrompt}
-	<div
-		class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mx-4 mb-4"
-	>
-		<div class="flex items-center justify-between">
-			<div class="flex items-center space-x-3">
-				<span class="text-2xl">📱</span>
-				<div>
-					<p class="font-medium text-blue-900 dark:text-blue-100">Add Arista to your home screen</p>
-					<p class="text-sm text-blue-700 dark:text-blue-300">
-						{#if isIOS}
-							Tap Share → Add to Home Screen
-						{:else if isAndroid}
-							Install for quick access
-						{:else}
-							Get app-like experience
-						{/if}
-					</p>
-				</div>
-			</div>
-			<div class="flex space-x-2">
-				{#if isAndroid && deferredPrompt}
-					<button
-						on:click={handleInstall}
-						class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-					>
-						Install
-					</button>
+	<aside class="install-prompt" aria-label="Add ARISTA to your home screen">
+		<img src="/images/arista-seal.jpg" alt="" width="40" height="40" />
+		<div class="install-prompt__copy">
+			<p>Add ARISTA to your home screen</p>
+			<span>
+				{#if isIOS}
+					In Safari, tap Share, then Add to Home Screen.
 				{:else}
-					<button
-						on:click={handleInstall}
-						class="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-					>
-						How
-					</button>
+					It opens like an app, one tap from your home screen.
 				{/if}
-				<button
-					on:click={dismissPrompt}
-					class="px-3 py-1 text-blue-600 dark:text-blue-400 border border-blue-600 dark:border-blue-400 rounded text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30"
-				>
-					×
-				</button>
-			</div>
+			</span>
 		</div>
-	</div>
+		<div class="install-prompt__actions">
+			<button type="button" onclick={handleInstall} class="btn btn-primary btn-sm">
+				{isAndroid && deferredPrompt ? "Install" : "Show me how"}
+			</button>
+			<button type="button" onclick={dismissPrompt} class="btn btn-ghost btn-sm">Not now</button>
+		</div>
+	</aside>
 {/if}
+
+<style>
+	.install-prompt {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 0.85rem;
+		width: min(48rem, 100% - 2 * var(--gutter));
+		margin: 0 auto 2rem;
+		padding: 0.85rem 1rem;
+		border-radius: var(--radius-panel);
+		background: var(--wash);
+		color: var(--ink);
+	}
+	.install-prompt img {
+		width: 2.5rem;
+		height: 2.5rem;
+		border-radius: 50%;
+	}
+	.install-prompt__copy p {
+		margin: 0;
+		font-weight: 650;
+	}
+	.install-prompt__copy span {
+		display: block;
+		margin-top: 0.1rem;
+		color: var(--muted);
+		font-size: var(--text-sm);
+		line-height: 1.4;
+	}
+	.install-prompt__actions {
+		display: flex;
+		gap: 0.35rem;
+	}
+	@media (max-width: 520px) {
+		.install-prompt {
+			grid-template-columns: auto minmax(0, 1fr);
+		}
+		.install-prompt__actions {
+			grid-column: 1 / -1;
+		}
+		.install-prompt__actions .btn {
+			flex: 1;
+		}
+	}
+</style>

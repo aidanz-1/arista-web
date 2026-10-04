@@ -1,8 +1,8 @@
-import { fail, redirect } from "@sveltejs/kit";
+import { fail } from "@sveltejs/kit";
 import type { Actions, ServerLoad } from "@sveltejs/kit";
-import { superValidate, setError } from "sveltekit-superforms";
+import { superValidate } from "sveltekit-superforms";
 import { z } from "zod";
-import { zod } from "sveltekit-superforms/adapters";
+import { zod4 as zod } from "sveltekit-superforms/adapters";
 import handleError from "$lib/handleError";
 
 const ForgotPasswordSchema = z.object({
@@ -48,4 +48,4 @@ export const actions: Actions = {
 			return handleError(error, form);
 		}
 	}
-}; 
+};

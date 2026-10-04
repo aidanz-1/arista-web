@@ -1,112 +1,154 @@
 <script lang="ts">
-	import { EventSchema, type RecievedEvent } from "$lib/db_types";
-	import { SlideToggle } from "@skeletonlabs/skeleton";
-	import { isOnCommittee } from "$lib/isOnCommittee";
-	import { currentUser } from "$lib/pocketbase";
-	import type { SuperValidated, Infer } from "sveltekit-superforms";
-	import { DateInput } from "date-picker-svelte";
+	import { untrack } from "svelte";
+	import { EventSchema } from "$lib/db_types";
+	import { SlideToggle } from "$lib/skeleton-compat";
+	import type { Infer } from "sveltekit-superforms";
 	import ErrorComponent from "$lib/components/ErrorComponent.svelte";
-	import { browser } from "$app/environment";
 	import InputField from "$lib/components/InputField.svelte";
 	import type { SuperForm } from "sveltekit-superforms/client";
 
-	export let promptText: "Update" | "Create" = "Create";
-	export let formObj: SuperForm<Infer<typeof EventSchema>>;
-	const { form, errors, constraints, message } = formObj;
+	interface Props {
+		promptText?: "Update" | "Create";
+		formObj: SuperForm<Infer<typeof EventSchema>>;
+	}
+
+	let { promptText = "Create", formObj }: Props = $props();
+	const { form, errors, constraints, message } = untrack(() => formObj);
+
+	function toDateTimeLocalValue(value: Date | string | null | undefined) {
+		if (!value) return "";
+		const date = value instanceof Date ? value : new Date(value);
+		if (Number.isNaN(date.getTime())) return "";
+		const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+		return localDate.toISOString().slice(0, 16);
+	}
 </script>
 
-<h2 class="h2">{promptText} an Event</h2>
 <ErrorComponent errors={$errors} />
 
-<InputField
-	form={formObj}
-	field="name"
-	label="Enter the event's title:"
-	placeholder="Blood drive, PS100 Fall Festival, Board games with the Elderly"
-/>
-<InputField
-	form={formObj}
-	field="location"
-	label="Enter the event's location:"
-	placeholder="Stuyvesant High School, PS100, Prospect Park, etc"
-/>
-
-<select
-	id ="place"
-	name="place"
-	bind:value={$form.place}
-	class="w-full rounded-lg border border-surface-300 bg-surface-50 text-surface-900 dark:bg-surface-800 dark:text-surface-50 p-2 focus:ring-2 focus:ring-primary-500">
-	<option value="" disabled selected>Select a borough</option>
-	<option value="In Stuy">In Stuy</option>
-	<option value="Queens">Queens</option>
-	<option value="Manhattan">Manhattan</option>
-	<option value="Brooklyn">Brooklyn</option>
-	<option value="Bronx">Bronx</option>
-	<option value="Staten Island">Staten Island</option>
-	<option value= "Other">Other</option>
-
-</select>
-
-<InputField
-	form={formObj}
-	field="description"
-	label="Enter the event's description:"
-	placeholder="Helping people, Saving the world, Assisting the Red Cross, etc"
-/>
-
-<InputField
-	form={formObj}
-	field="intendedVolunteers"
-	label="Enter the intended number of expected volunteers for this event:"
-	placeholder="5, 10, 20, etc"
-	inputmode="numeric" 
+<div class="editor">
+	<div class="editor__wide">
+		<InputField
+			form={formObj}
+			field="name"
+			label="Event name"
+			placeholder="Blood drive, PS 100 fall festival"
+		/>
+	</div>
+	<InputField
+		form={formObj}
+		field="location"
+		label="Location"
+		placeholder="Stuyvesant cafeteria, Prospect Park"
 	/>
-
-<label for="start_time">Choose a start time for this event</label>
-{#if browser}
-	<DateInput
-		id="start_time"
-		bind:value={$form.start_time}
-		dynamicPositioning
-		timePrecision="minute"
-		format="yyyy-MM-dd HH:mm"
-		max={new Date("2029-01-01 00:00:00")}
+	<div class="editor__field">
+		<label for="place">Borough or area</label>
+		<select id="place" name="place" bind:value={$form.place}>
+			<option value="" disabled selected>Choose one</option>
+			<option value="In Stuy">In Stuy</option>
+			<option value="Queens">Queens</option>
+			<option value="Manhattan">Manhattan</option>
+			<option value="Brooklyn">Brooklyn</option>
+			<option value="Bronx">Bronx</option>
+			<option value="Staten Island">Staten Island</option>
+			<option value="Other">Other</option>
+		</select>
+	</div>
+	<div class="editor__wide">
+		<InputField
+			form={formObj}
+			field="description"
+			label="What will volunteers do?"
+			placeholder="What the work is, what to bring, and who to find when you arrive."
+		/>
+	</div>
+	<InputField
+		form={formObj}
+		field="intendedVolunteers"
+		label="Volunteers needed"
+		placeholder="10"
+		inputmode="numeric"
 	/>
-{/if}
-{#if $errors.start_time}<span class="invalid">{$errors.start_time}</span>{/if}
-<!-- Bind to invisible date input so it can be submitted via form -->
-<input name="start_time" type="data" bind:value={$form.start_time} style="display : none;" />
+	<InputField form={formObj} field="multiplier" label="Credit multiplier" inputmode="numeric" />
+	<div class="editor__field">
+		<label for="start_time">Starts</label>
+		<input
+			id="start_time"
+			name="start_time"
+			type="datetime-local"
+			value={toDateTimeLocalValue($form.start_time)}
+			max="2029-01-01T00:00"
+		/>
+	</div>
+	<div class="editor__field">
+		<label for="end_time">Ends</label>
+		<input
+			id="end_time"
+			name="end_time"
+			type="datetime-local"
+			value={toDateTimeLocalValue($form.end_time)}
+			max="2029-01-01T00:00"
+		/>
+	</div>
+	<div class="editor__toggle editor__wide">
+		<div>
+			<strong>Close sign-ups</strong>
+			<p>Members can still see the event, but no one new can join.</p>
+		</div>
+		<SlideToggle
+			name="signupStatus"
+			bind:checked={$form.signupStatus}
+			{...$constraints.signupStatus}
+		/>
+	</div>
+	<div class="editor__wide">
+		<button class="btn btn-primary btn-lg" type="submit"
+			>{promptText === "Create" ? "Create event" : "Save changes"}</button
+		>
+	</div>
+</div>
 
-<label for="end_time">Choose an end time for this event</label>
-{#if browser}
-	<DateInput
-		id="end_time"
-		bind:value={$form.end_time}
-		dynamicPositioning
-		timePrecision="minute"
-		format="yyyy-MM-dd HH:mm"
-		max={new Date("2029-01-01 00:00:00")}
-	/>
-{/if}
-{#if $errors.end_time}<span class="invalid">{$errors.end_time}</span>{/if}
-<!-- Bind to invisible date input so it can be submitted via form -->
-<input name="end_time" type="data" bind:value={$form.end_time} style="display : none;" />
-
-<InputField
-	form={formObj}
-	field="multiplier"
-	label="Choose a credits multiplier (default is 1.0):"
-	inputmode="numeric"
-/>
-
-<label for="signupStatus">Signups Closed</label>
-<SlideToggle
-	name="signupStatus"
-	bind:checked={$form.signupStatus}
-	active="bg-primary-500 dark:bg-primary-500"
-	{...$constraints.signupStatus}
-></SlideToggle>
-
-
-<br />
-<button class="btn variant-filled" type="submit">{promptText} Event</button>
+<style>
+	.editor {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1.1rem;
+	}
+	.editor__wide {
+		grid-column: 1 / -1;
+	}
+	.editor__field {
+		display: grid;
+		align-content: start;
+		gap: 0.4rem;
+	}
+	.editor__field label {
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	.editor__toggle {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 1rem 1.1rem;
+		border-radius: var(--radius-field);
+		background: var(--surface-sunken);
+	}
+	.editor__toggle strong {
+		font-weight: 650;
+	}
+	.editor__toggle p {
+		margin: 0.15rem 0 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+	@media (max-width: 640px) {
+		.editor {
+			grid-template-columns: 1fr;
+		}
+		.editor .btn {
+			width: 100%;
+		}
+	}
+</style>

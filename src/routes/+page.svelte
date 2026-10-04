@@ -2,64 +2,533 @@
 	import type { PageData } from "./$types";
 	import { currentUser } from "$lib/pocketbase";
 	import StrikesDisplay from "$lib/components/StrikesDisplay.svelte";
-	import CreditsDisplay from "$lib/components/CreditsDisplay.svelte";
 	import SignedUpEventsDisplay from "$lib/components/SignedUpEventsDisplay.svelte";
-	import FAQ from "$lib/components/FAQ.svelte";
 	import PWAInstall from "$lib/components/PWAInstall.svelte";
-	import { onMount } from "svelte";
-	import { browser } from "$app/environment";
-	import { invalidateAll } from "$app/navigation";
+	import SemesterCreditPanel from "$lib/components/SemesterCreditPanel.svelte";
+	import PillarsTemple from "$lib/components/PillarsTemple.svelte";
+	import { firstName as getFirstName } from "$lib/displayName";
 
-	export let data: PageData;
+	interface Props {
+		data: PageData;
+	}
 
-	onMount(() => {
-		if (browser) {
-			// Always reload data on homepage load to ensure fresh hours data
-			invalidateAll();
-		}
+	let { data }: Props = $props();
+
+	const firstName = $derived(getFirstName($currentUser));
+	const greeting = $derived.by(() => {
+		const hour = new Date().getHours();
+		if (hour < 5) return "Up late";
+		if (hour < 12) return "Good morning";
+		if (hour < 17) return "Good afternoon";
+		return "Good evening";
 	});
+
+	const waysIn = [
+		{
+			title: "Get help in any class",
+			body: "Tell us the class and topic, pick times that work, and a tutor will reach out.",
+			href: "/tutoring",
+			action: "Request tutoring"
+		},
+		{
+			title: "Study with what we've made",
+			body: "Study guides, Cram Central, and freshman essentials, written by Stuyvesant students.",
+			href: "/resources",
+			action: "Browse resources"
+		},
+		{
+			title: "Serve the city with us",
+			body: "ARISTA members volunteer with partners across New York City, from food pantries to park cleanups and more.",
+			href: "/faq",
+			action: "How membership works"
+		}
+	];
 </script>
 
-<main class="container mx-auto p-4 md:p-8 space-y-8">
-	{#if $currentUser && !$currentUser.is_tutee}
-		<hgroup>
-			<h1 class="h1">Hello{$currentUser ? `, ${$currentUser.name}` : ""}! View your credits.</h1>
-			<p class="h5">View your progress and the ARISTA service requirements here.</p>
-		</hgroup>
+<svelte:head>
+	<title>ARISTA | Stuyvesant High School</title>
+</svelte:head>
 
-		{#if data.credits !== undefined}
-			<CreditsDisplay credits={data.credits} user={$currentUser} />
-		{/if}
+{#if $currentUser?.member}
+	<main class="page dashboard">
+		<header class="page-header">
+			<div>
+				<h1>{greeting}, {firstName}.</h1>
+			</div>
+			<div class="page-header__actions">
+				<a class="btn btn-primary" href="/events">Find events</a>
+				<a class="btn" href="/tutoring">Open tutoring</a>
+			</div>
+		</header>
+
+		<SemesterCreditPanel
+			credits={data.credits ?? []}
+			user={$currentUser}
+			semesters={data.creditSemesters ?? []}
+			activeSemesterId={data.activeCreditSemester?.id}
+			requirements={data.creditRequirements ?? []}
+		/>
+
 		{#if data.signed_up_events !== undefined}
 			<SignedUpEventsDisplay signed_up_events={data.signed_up_events} />
 		{/if}
-		{#if data.strikes !== undefined}
-			<StrikesDisplay strikes={data.strikes} />
-		{/if}
-	{:else}
-		<hgroup>
-			<h1 class="h1">Welcome to ARISTA{$currentUser ? `, ${$currentUser.name}` : ""}.</h1>
-			<p class="h3">
-				Request academic support through individual tutoring
-				<a class="anchor" href="/tutoring">here</a>.
-			</p>
-			{#if $currentUser}
-				<p class="text-sm opacity-60 mt-2">
-					Issues? Contact Mekot, VP of Web Dev, at
-					<a class="anchor" href="mailto:stuyaristanycweb@gmail.com">stuyaristanycweb@gmail.com</a>
-					or
-					<a class="anchor" href="mailto:msarder70@stuy.edu">msarder70@stuy.edu</a>.
-				</p>
-			{/if}
-		</hgroup>
-	{/if}
-	{#if !$currentUser}
-		<h3 class="h3">
-			You aren't logged in.
-			<a class="anchor" href="/login">Login</a> or <a class="anchor" href="/register">Register</a>.
-		</h3>
-	{/if}
+		{#if data.strikes !== undefined}<StrikesDisplay strikes={data.strikes} />{/if}
+	</main>
+{:else if $currentUser}
+	<main class="page tutee">
+		<section class="tutee__intro">
+			<h1>What are you working on, {firstName}?</h1>
+			<div class="tutee__actions">
+				<a class="btn btn-primary btn-lg" href="/tutoring">Request tutoring</a>
+			</div>
+		</section>
 
-	<!-- PWA Install Prompt -->
-	<PWAInstall />
-</main>
+		<section class="tutee__steps" aria-labelledby="steps-title">
+			<h2 id="steps-title" class="section-title">How it goes</h2>
+			<ol>
+				<li>
+					<h3>Share the class</h3>
+					<p>Add the course, topic, teacher, and the times you're free.</p>
+				</li>
+				<li>
+					<h3>Meet your tutor</h3>
+					<p>A member claims your request. Use the session page to message and plan.</p>
+				</li>
+				<li>
+					<h3>Wrap up the session</h3>
+					<p>When you're done, confirm the time you spent together.</p>
+				</li>
+			</ol>
+		</section>
+
+		<p class="tutee__support">
+			Something not working? Email Mekot, VP of Web Development, at
+			<a class="text-link" href="mailto:stuyaristanycweb@gmail.com">stuyaristanycweb@gmail.com</a>.
+		</p>
+	</main>
+{:else}
+	<main class="home">
+		<section class="hero" aria-labelledby="home-title">
+			<img
+				class="hero__photo"
+				src="/images/members-2026.jpg"
+				srcset="/images/members-2026-1000.jpg 1000w, /images/members-2026.jpg 1730w"
+				sizes="100vw"
+				width="1730"
+				height="763"
+				alt="A large group of ARISTA members in ARISTA t-shirts, gathered together in a Stuyvesant hallway."
+				fetchpriority="high"
+			/>
+			<div class="hero__shade" aria-hidden="true"></div>
+			<div class="hero__inner">
+				<div class="hero__text">
+					<h1 id="home-title">ARISTA</h1>
+					<div class="hero__actions">
+						<a class="btn btn-flame btn-lg" href="/tutoring">Request tutoring</a>
+						<a class="btn btn-lg hero__ghost" href="/about">Meet ARISTA</a>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<div class="home__body">
+			<section class="ways" aria-labelledby="ways-title">
+				<h2 id="ways-title" class="ways__title">How ARISTA can help</h2>
+				<div class="ways__grid">
+					{#each waysIn as way, index}
+						<a class="way" href={way.href}>
+							<span class="way__icon" aria-hidden="true">
+								<svg viewBox="0 0 24 24">
+									{#if index === 0}
+										<path
+											d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"
+										/>
+										<path d="M9 8h7M9 11.5h5" />
+									{:else if index === 1}
+										<path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5M10 13h6M10 17h6" />
+									{:else}
+										<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10Z" />
+									{/if}
+								</svg>
+							</span>
+							<h3>{way.title}</h3>
+							<p>{way.body}</p>
+							<span class="way__action"
+								>{way.action}<svg viewBox="0 0 24 24" aria-hidden="true"
+									><path d="M5 12h14M13 6l6 6-6 6" /></svg
+								></span
+							>
+						</a>
+					{/each}
+				</div>
+			</section>
+
+			<section class="pillars" aria-labelledby="pillars-title">
+				<div class="pillars__head">
+					<h2 id="pillars-title">Core Pillars</h2>
+				</div>
+				<PillarsTemple />
+			</section>
+
+			<section class="join" aria-labelledby="join-title">
+				<div>
+					<h2 id="join-title">Thinking about joining?</h2>
+					<p>
+						Applications open later in the spring. Freshmen, sophomores, and juniors with a 92
+						overall average or higher can apply. Make an account now so you're ready when they do.
+					</p>
+				</div>
+				<div class="join__actions">
+					<a class="btn btn-flame btn-lg" href="/register">Create an account</a>
+					<a class="join__link" href="/faq">Read the FAQ</a>
+				</div>
+			</section>
+		</div>
+	</main>
+{/if}
+
+<PWAInstall />
+
+<style>
+	/* ---------- Public home ---------- */
+	.home {
+		padding-bottom: clamp(3rem, 7vw, 6rem);
+	}
+	.home__body {
+		width: min(var(--tool-width), 100% - 2 * var(--gutter));
+		margin: 0 auto;
+	}
+
+	/* Full-bleed photo hero. The photo settles in and the headline rises:
+	 * the page's one orchestrated motion moment. */
+	.hero {
+		position: relative;
+		display: flex;
+		align-items: flex-end;
+		min-height: clamp(34rem, calc(100svh - 4.25rem), 60rem);
+		overflow: hidden;
+		background: #161616;
+		color: #fff;
+	}
+	.hero__photo {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: 50% 35%;
+		animation: settle 1400ms var(--ease-out) both;
+	}
+	.hero__shade {
+		position: absolute;
+		inset: 0;
+		/* Neutral shade only behind the text, so the photo keeps its real colors. */
+		background:
+			linear-gradient(to top, rgb(0 0 0 / 78%) 0%, rgb(0 0 0 / 45%) 30%, rgb(0 0 0 / 0%) 62%),
+			linear-gradient(to bottom, rgb(0 0 0 / 28%), rgb(0 0 0 / 0%) 18%);
+	}
+	.hero__inner {
+		position: relative;
+		width: min(var(--tool-width), 100% - 2 * var(--gutter));
+		margin: 0 auto;
+		padding: clamp(6rem, 14vh, 10rem) 0 clamp(2.5rem, 7vh, 4.5rem);
+	}
+	.hero__text {
+		max-width: 46rem;
+	}
+	.hero h1 {
+		color: #fff;
+		font-size: clamp(4.5rem, 14vw, 10rem);
+		letter-spacing: 0.02em;
+		font-variation-settings:
+			"SOFT" 100,
+			"WONK" 1;
+		font-weight: 560;
+		letter-spacing: -0.025em;
+		line-height: 0.98;
+		text-shadow: 0 2px 24px rgb(0 0 0 / 25%);
+		animation: rise 800ms var(--ease-out) 200ms both;
+	}
+	.hero__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		margin-top: 1.75rem;
+		animation: rise 800ms var(--ease-out) 420ms both;
+	}
+	.hero__ghost {
+		border-color: rgb(255 255 255 / 55%);
+		background: rgb(255 255 255 / 8%);
+		color: #fff;
+		backdrop-filter: blur(6px);
+	}
+	.hero__ghost:hover {
+		border-color: #fff;
+		background: rgb(255 255 255 / 16%);
+		color: #fff;
+	}
+
+	@keyframes rise {
+		from {
+			opacity: 0;
+			transform: translateY(16px);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+	@keyframes settle {
+		from {
+			opacity: 0;
+			transform: scale(1.06);
+		}
+		to {
+			opacity: 1;
+			transform: none;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hero h1,
+		.hero__actions,
+		.hero__photo {
+			animation: none;
+		}
+	}
+
+	.ways {
+		margin-top: clamp(3.5rem, 8vw, 6rem);
+	}
+	.ways__title {
+		margin-bottom: clamp(1.25rem, 3vw, 2rem);
+		font-size: clamp(2rem, 4vw, var(--text-3xl));
+		font-variation-settings:
+			"SOFT" 100,
+			"WONK" 1;
+		font-weight: 560;
+	}
+	.ways__grid {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 1rem;
+	}
+	.way {
+		display: grid;
+		grid-template-rows: auto auto 1fr auto;
+		gap: 0.75rem;
+		padding: clamp(1.4rem, 2.5vw, 2rem);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+		color: var(--ink);
+		text-decoration: none;
+		transition:
+			border-color var(--dur-3) var(--ease-out),
+			background-color var(--dur-3) var(--ease-out),
+			transform var(--dur-3) var(--ease-out);
+	}
+	.way:hover {
+		border-color: var(--line-strong);
+		background: var(--wash);
+		transform: translateY(-2px);
+	}
+	.way__icon {
+		display: grid;
+		place-items: center;
+		width: 3rem;
+		height: 3rem;
+		border-radius: 50%;
+		background: var(--flame-soft);
+		color: var(--flame-text);
+	}
+	.way__icon svg,
+	.way__action svg {
+		width: 1.35rem;
+		height: 1.35rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 1.75;
+	}
+	.way h3 {
+		margin-top: 0.4rem;
+		font-size: clamp(1.4rem, 2.2vw, 1.75rem);
+		font-variation-settings: "SOFT" 100;
+		font-weight: 560;
+	}
+	.way p {
+		margin: 0;
+		color: var(--muted);
+		line-height: 1.6;
+	}
+	.way__action {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: 0.5rem;
+		color: var(--link);
+		font-weight: 600;
+	}
+	.way__action svg {
+		width: 1.1rem;
+		height: 1.1rem;
+		transition: transform var(--dur-3) var(--ease-out);
+	}
+	.way:hover .way__action svg {
+		transform: translateX(3px);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.way:hover {
+			transform: none;
+		}
+	}
+
+	.pillars {
+		margin-top: clamp(4rem, 9vw, 7rem);
+	}
+	.pillars__head {
+		margin: 0 0 clamp(1.5rem, 4vw, 2.5rem);
+	}
+	.pillars__head h2 {
+		font-size: clamp(2rem, 4vw, var(--text-3xl));
+		font-variation-settings:
+			"SOFT" 100,
+			"WONK" 1;
+		font-weight: 560;
+	}
+
+	.join {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto;
+		gap: 1.5rem 3rem;
+		align-items: center;
+		margin-top: clamp(3.5rem, 8vw, 6.5rem);
+		padding: clamp(1.75rem, 4.5vw, 3.5rem);
+		border-radius: clamp(18px, 2.5vw, 32px);
+		background: var(--seal);
+		color: #fff;
+	}
+	:global(.dark) .join {
+		background: var(--seal-soft);
+	}
+	.join h2 {
+		color: #fff;
+		font-size: clamp(1.75rem, 3.5vw, var(--text-3xl));
+		font-variation-settings:
+			"SOFT" 100,
+			"WONK" 1;
+		font-weight: 550;
+	}
+	.join p {
+		max-width: 40rem;
+		margin: 0.75rem 0 0;
+		color: rgb(255 255 255 / 82%);
+		font-size: var(--text-md);
+		line-height: 1.55;
+	}
+	.join__actions {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.75rem 1.25rem;
+	}
+	.join__link {
+		color: #fff;
+		font-weight: 600;
+		text-decoration: underline;
+		text-decoration-color: rgb(255 255 255 / 45%);
+		text-underline-offset: 0.2em;
+	}
+	.join__link:hover {
+		text-decoration-color: #fff;
+	}
+
+	/* ---------- Member dashboard ---------- */
+	.dashboard {
+		display: grid;
+		gap: clamp(1.25rem, 3vw, 2rem);
+	}
+	.dashboard .page-header {
+		margin-bottom: 0.5rem;
+	}
+
+	/* ---------- Tutee home ---------- */
+	.tutee {
+		display: grid;
+		gap: clamp(2.5rem, 6vw, 4rem);
+	}
+	.tutee__intro h1 {
+		max-width: 16ch;
+		font-size: clamp(2.25rem, 5vw, var(--text-4xl));
+		font-variation-settings:
+			"SOFT" 100,
+			"WONK" 1;
+		font-weight: 560;
+		line-height: 1.02;
+	}
+	.tutee__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		margin-top: 1.75rem;
+	}
+	.tutee__steps ol {
+		display: grid;
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 1rem;
+		margin: 1.25rem 0 0;
+		padding: 0;
+		list-style: none;
+		counter-reset: step;
+	}
+	.tutee__steps li {
+		padding: 1.4rem;
+		border-radius: var(--radius-panel);
+		background: var(--wash);
+		counter-increment: step;
+	}
+	.tutee__steps li::before {
+		display: grid;
+		place-items: center;
+		width: 2rem;
+		height: 2rem;
+		margin-bottom: 1rem;
+		border-radius: 50%;
+		background: var(--surface);
+		color: var(--ink);
+		content: counter(step);
+		font-family: var(--font-display);
+		font-weight: 600;
+	}
+	.tutee__steps h3 {
+		font-size: var(--text-lg);
+	}
+	.tutee__steps p {
+		margin: 0.4rem 0 0;
+		color: var(--muted);
+		line-height: 1.55;
+	}
+	.tutee__support {
+		margin: 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+
+	@media (max-width: 860px) {
+		.ways__grid {
+			grid-template-columns: 1fr;
+		}
+		.join {
+			grid-template-columns: 1fr;
+		}
+		.tutee__steps ol {
+			grid-template-columns: 1fr;
+		}
+	}
+	@media (max-width: 560px) {
+		.hero__photo {
+			object-position: 40% 30%;
+		}
+	}
+</style>

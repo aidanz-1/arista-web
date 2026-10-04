@@ -1,13 +1,19 @@
 import type { RecievedUser } from "$lib/db_types";
-import { isOnCommittee } from "$lib/isOnCommittee";
+import {
+	ADMIN_SECTION_INFO,
+	accessibleSections,
+	canAccess,
+	isAdmin,
+	type AdminSection
+} from "$lib/adminAccess";
 import { env } from "$env/dynamic/public";
-import { redirect, type Handle } from "@sveltejs/kit";
+import { dev } from "$app/environment";
+import { error, redirect, type Handle } from "@sveltejs/kit";
 import PocketBase from "pocketbase";
+import { isIndexablePage } from "$lib/seo";
 
 export const handle: Handle = async ({ event, resolve }) => {
-	// Auth state belongs to a single request. Reusing the browser-side PocketBase
-	// singleton here lets concurrent requests overwrite each other's auth store.
-	const pb = new PocketBase(env.PUBLIC_POCKETBASE_URL || "http://127.0.0.1:8090");
+	const pb = new PocketBase(env.PUBLIC_POCKETBASE_URL || "https://db.stuyarista.org");
 
 	// before
 	pb.authStore.loadFromCookie(event.request.headers.get("cookie") || "");
@@ -20,54 +26,89 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 
 	event.locals.pb = pb;
-	event.locals.user = structuredClone(pb.authStore.model);
+	event.locals.user = structuredClone(pb.authStore.model) as RecievedUser | null;
 
-	if (event.url.pathname.startsWith("/events") || event.url.pathname.startsWith("/settings") || event.url.pathname.startsWith("/tutoring") || event.url.pathname.startsWith("/apply") || event.url.pathname.startsWith("/leaderboard")) {
-		if (!event.locals.user) { // if not logged in, redirect
+	if (
+		!["/robots.txt", "/sitemap.xml"].includes(event.url.pathname) &&
+		!isIndexablePage(event.url, 200, !!event.locals.user)
+	) {
+		event.setHeaders({ "X-Robots-Tag": "noindex, nofollow" });
+	}
+
+	if (
+		event.url.pathname.startsWith("/events") ||
+		event.url.pathname.startsWith("/settings") ||
+		event.url.pathname.startsWith("/tutoring") ||
+		event.url.pathname.startsWith("/apply") ||
+		event.url.pathname.startsWith("/leaderboard")
+	) {
+		if (!event.locals.user) {
+			// if not logged in, redirect
 			// Redirection inspired by https://www.youtube.com/watch?v=ieECVME5ZLU
+			// Everyone lands on sign in. Returning students are the common case, and the
+			// sign-in page links to registration with the same destination for new ones.
 			const fromUrl = event.url.pathname + event.url.search;
-			let message = "You must be logged in to access that page.";
+			let message = "Sign in to continue.";
 			if (event.url.pathname.startsWith("/apply")) {
-				message = "Prospective ARISTA applicants must first register as a tutee before filling out the application. Only current freshmen, sophomores, and junior Stuyvesant students with a 92 overall GPA (no exceptions will be made, not even if you are a tenth off) are eligible to apply.";
-				throw redirect(303, `/register?redirectTo=${fromUrl}&message=${message}`);
+				message =
+					"Sign in to apply. New to ARISTA? Create a tutee account first. Current freshmen, sophomores, and juniors with a 92 overall average or higher are eligible.";
 			}
 			if (event.url.pathname.startsWith("/tutoring")) {
-				message = "Sign in to view or submit tutoring requests.";
-				throw redirect(303, `/login?redirectTo=${fromUrl}&message=${message}`);
+				message = "Sign in to request tutoring. New here? Create a free account in a minute.";
 			}
-			throw redirect(303, `/login?redirectTo=${fromUrl}&message=${message}`);
+			throw redirect(
+				303,
+				`/login?redirectTo=${encodeURIComponent(fromUrl)}&message=${encodeURIComponent(message)}`
+			);
 		}
 	}
 
-	if ((event.url.pathname.startsWith("/events")) && event.locals.user && event.locals.user.is_tutee) {
-		// Redirection inspired by https://www.youtube.com/watch?v=ieECVME5ZLU
-		const fromUrl = event.url.pathname + event.url.search;
-		const message = "Tutees cannot access that page.";
-		throw redirect(303, `/login?redirectTo=${fromUrl}&message=${message}`);
+	if (event.url.pathname.startsWith("/events") && event.locals.user && !event.locals.user.member) {
+		error(403, "Tutee accounts cannot access the events area.");
 	}
 
-	if ((event.url.pathname.startsWith("/apply")) && event.locals.user && !event.locals.user.is_tutee) {
-		throw redirect(303, `/`); // current arista members can't access the application page
+	if (event.url.pathname.startsWith("/apply") && event.locals.user && event.locals.user.member) {
+		error(403, "Current ARISTA members cannot access the application page.");
 	}
 
 	// Forbid non-admins from entering admin routes
 	if (event.url.pathname.startsWith("/admin")) {
 		if (!event.locals.user) {
 			const fromUrl = event.url.pathname + event.url.search;
-			const message = "You must be logged in to access the admin panel.";
-			throw redirect(303, `/login?redirectTo=${fromUrl}&message=${message}`);
+			const message = "Sign in to open the admin area.";
+			throw redirect(
+				303,
+				`/login?redirectTo=${encodeURIComponent(fromUrl)}&message=${encodeURIComponent(message)}`
+			);
 		}
-		if (!isOnCommittee(event.locals.user as RecievedUser, "admin") && !isOnCommittee(event.locals.user as RecievedUser, "operations")) {
-			const fromUrl = event.url.pathname + event.url.search;
-			const message = "Non-admins cannot access that page.";
-			throw redirect(303, `/login?redirectTo=${fromUrl}&message=${message}`);
+		// Each admin page belongs to a section. Admins see everything; anyone else
+		// only the sections an admin has granted them on the Permissions page.
+		const user = event.locals.user as RecievedUser;
+		const path = event.url.pathname;
+		const section: AdminSection | "permissions" = path.startsWith("/admin/permissions")
+			? "permissions"
+			: path.startsWith("/admin/crediting")
+				? "crediting"
+				: path.startsWith("/admin/tutoring")
+					? "tutoring"
+					: path.startsWith("/admin/credits")
+						? "credits"
+						: "people";
+		const allowed = section === "permissions" ? isAdmin(user) : canAccess(user, section);
+		if (!allowed) {
+			const fallback = accessibleSections(user)[0];
+			if (path === "/admin" && fallback) throw redirect(303, ADMIN_SECTION_INFO[fallback].href);
+			error(403, "You don't have access to this part of the admin area. Ask an admin to grant it.");
 		}
 	}
 
 	const response = await resolve(event);
 
 	// after
-	response.headers.set("set-cookie", pb.authStore.exportToCookie({ httpOnly: false }));
+	response.headers.set(
+		"set-cookie",
+		pb.authStore.exportToCookie({ httpOnly: true, secure: !dev, sameSite: "lax" })
+	);
 
 	return response;
 };

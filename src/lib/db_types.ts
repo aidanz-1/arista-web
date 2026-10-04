@@ -18,13 +18,16 @@ export const CommitteesSchema = z.union([
 export const UserSchema = z.object({
 	email: z.string().email(),
 	name: z.string().min(3).max(48),
+	preferredName: z.string().trim().max(32).optional(),
 	avatar: z.string().optional(),
 	graduationYear: z.number().min(2023).max(2999),
 	osis: z.number().min(1).max(999999999),
 	homeroom: z.string().max(4),
 	committees: CommitteesSchema.array().max(5),
-	is_tutee: z.boolean().default(true),
-	choice: z.boolean().default(false)
+	member: z.boolean().default(false),
+	creditChoice: z.boolean().default(false),
+	themePreference: z.enum(["system", "light", "dark"]).default("system"),
+	adminSections: z.array(z.enum(["people", "crediting", "tutoring", "credits"])).optional()
 });
 
 export const EventSchema = z.object({
@@ -46,6 +49,7 @@ export const CreditSchema = z.object({
 	user: z.string(), // id of user
 	event: z.string(), // id of event
 	session: z.string(), // id of session,
+	semester: z.string().optional(),
 	type: z.union([z.literal("event"), z.literal("tutoring"), z.literal("other")]),
 	manualExplanation: z.string().min(1).optional()
 });
@@ -54,6 +58,28 @@ export const StrikeSchema = z.object({
 	strikedUser: z.string(),
 	reason: z.string().min(1).max(256),
 	weight: z.number().default(1)
+});
+
+export const CreditSemesterSchema = z.object({
+	name: z.string().min(3).max(64),
+	key: z.string().regex(/^[a-z]+\d{4}$/),
+	active: z.boolean().default(false),
+	rolloverFrom: z.string().optional(),
+	rolloverPercent: z.coerce.number().min(0).max(1).default(1)
+});
+
+export const CreditRequirementSchema = z.object({
+	semester: z.string(),
+	graduationYear: z.number().min(2023).max(2999),
+	committee: z.union([
+		z.literal("general"),
+		z.literal("events"),
+		z.literal("operations"),
+		z.literal("web")
+	]),
+	eventCredits: z.number().min(0),
+	tutoringCredits: z.number().min(0),
+	otherCredits: z.number().min(0)
 });
 
 export const TutoringRequestSchema = z.object({
@@ -72,8 +98,24 @@ export const TutoringSessionSchema = z.object({
 	tutor: z.string().min(2).max(64),
 	tutoringRequest: z.string().min(2).max(64),
 	isComplete: z.boolean().default(false),
-	dateCompleted: z.date().optional(),
-	durationInHours: z.coerce.number().min(0.5).max(10).optional()
+	tuteeMarkedComplete: z.boolean().default(false),
+	dateCompleted: z.coerce.date().optional(),
+	durationInHours: z.coerce.number().min(0.5).max(10).optional(),
+	verificationImage: z.string().optional(),
+	verificationSubmittedAt: z.coerce.date().optional(),
+	verificationStorageProvider: z
+		.union([z.literal("pocketbase"), z.literal("google_drive")])
+		.optional(),
+	verificationExternalUrl: z.string().url().optional(),
+	durationWarning: z.boolean().default(false),
+	durationWarningReason: z.string().optional()
+});
+
+export const TutoringMessageSchema = z.object({
+	session: z.string().min(2).max(64),
+	sender: z.string().min(2).max(64),
+	body: z.string().min(1).max(1000),
+	sentAt: z.coerce.date().optional()
 });
 
 export const ExtraCurricularSchema = z.object({
@@ -93,26 +135,51 @@ export const ExtraCurricularSchema = z.object({
 });
 
 export const ApplicationSchema = z.object({
-	q1: z.preprocess((a, ctx) => String(a).trim().replace(/[^\x00-\xFF]/g, ""), z.string().min(2).max(1010)), // remove unicode characters (tabs, emojis) to prevent miscount bug
-	q2: z.preprocess((a, ctx) => String(a).trim().replace(/[^\x00-\xFF]/g, ""), z.string().min(2).max(2010)),
-	q3: z.preprocess((a, ctx) => String(a).trim().replace(/[^\x00-\xFF]/g, ""), z.string().min(2).max(2010)),
+	q1: z.preprocess(
+		(a, ctx) =>
+			String(a)
+				.trim()
+				.replace(/[^\x00-\xFF]/g, ""),
+		z.string().min(2).max(1010)
+	), // remove unicode characters (tabs, emojis) to prevent miscount bug
+	q2: z.preprocess(
+		(a, ctx) =>
+			String(a)
+				.trim()
+				.replace(/[^\x00-\xFF]/g, ""),
+		z.string().min(2).max(2010)
+	),
+	q3: z.preprocess(
+		(a, ctx) =>
+			String(a)
+				.trim()
+				.replace(/[^\x00-\xFF]/g, ""),
+		z.string().min(2).max(2010)
+	),
 	extracurriculars: z.array(ExtraCurricularSchema).min(0).max(20).nullable()
 });
 
 export type ExtraCurricular = z.infer<typeof ExtraCurricularSchema>;
 
-export const PublicUserDataSchema = UserSchema.pick({ email: true, name: true });
+export const PublicUserDataSchema = UserSchema.pick({
+	email: true,
+	name: true,
+	preferredName: true
+});
 
 export type RecievedUser = z.infer<typeof UserSchema> & StrictRecordModel;
 export type RecievedEvent = z.infer<typeof EventSchema> &
-	StrictRecordModel & { signed_up: string[]; event_owner: string; };
+	StrictRecordModel & { signed_up: string[]; event_owner: string };
 export type RecievedCredit = z.infer<typeof CreditSchema> & StrictRecordModel;
+export type RecievedCreditSemester = z.infer<typeof CreditSemesterSchema> & StrictRecordModel;
+export type RecievedCreditRequirement = z.infer<typeof CreditRequirementSchema> & StrictRecordModel;
 export type RecievedStrike = z.infer<typeof StrikeSchema> & StrictRecordModel;
 export type RecievedTutoringRequest = z.infer<typeof TutoringRequestSchema> & StrictRecordModel;
 export type RecievedTutoringSession = z.infer<typeof TutoringSessionSchema> & StrictRecordModel;
+export type RecievedTutoringMessage = z.infer<typeof TutoringMessageSchema> & StrictRecordModel;
 export type RecievedPublicUserData = z.infer<typeof PublicUserDataSchema> & StrictRecordModel;
 export type RecievedApplication = z.infer<typeof ApplicationSchema> &
-	StrictRecordModel & { applicant: string; submitted: boolean; };
+	StrictRecordModel & { applicant: string; submitted: boolean; submitted_time?: string };
 
 export type ExpandedCredit = {
 	expand?: {
@@ -127,14 +194,23 @@ export type ExpandedEvent = {
 	};
 } & RecievedEvent;
 
-export type OpenUser = RecievedUser & { [x: string | number | symbol]: any; };
+export type OpenUser = RecievedUser & { [x: string | number | symbol]: any };
 
 export type ExpandedTutoringSession = {
 	tutee_name?: string;
 	tutee_email?: string;
+	tutee_contact?: string;
 	tutor_name?: string;
 	tutor_email?: string;
+	tutor_contact?: string;
+	messages?: ExpandedTutoringMessage[];
 	expand: {
 		tutoringRequest: RecievedTutoringRequest;
 	};
 } & RecievedTutoringSession;
+
+export type ExpandedTutoringMessage = {
+	sender_name?: string;
+} & RecievedTutoringMessage;
+
+export type RecievedContactCard = { user: string; details: string } & StrictRecordModel;

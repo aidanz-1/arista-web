@@ -1,4 +1,9 @@
-import type { RecievedCredit, ExpandedCredit, RecievedEvent } from "$lib/db_types";
+import type {
+	RecievedCredit,
+	ExpandedCredit,
+	RecievedCreditRequirement,
+	RecievedEvent
+} from "$lib/db_types";
 
 export function calculateCredits(
 	credits: RecievedCredit[] | ExpandedCredit[] | undefined,
@@ -17,25 +22,21 @@ export function calculateCredits(
 }
 
 export function calculateCreditsByDate(
-    credits: RecievedCredit[] | ExpandedCredit[] | undefined,
-    type: RecievedCredit["type"],
-    sinceDate: Date 
+	credits: RecievedCredit[] | ExpandedCredit[] | undefined,
+	type: RecievedCredit["type"],
+	sinceDate: Date
 ): number {
-    if (!credits) return 0;
+	if (!credits) return 0;
 
-    return credits
-        .filter(c => {
-            const createdDate = new Date(c.created);
-            return c.type === type && createdDate >= sinceDate;
-        })
-        .reduce((sum, c) => sum + c.credits, 0);
+	return credits
+		.filter((c) => {
+			const createdDate = new Date(c.created);
+			return c.type === type && createdDate >= sinceDate;
+		})
+		.reduce((sum, c) => sum + c.credits, 0);
 }
 
-export function calculateRequiredCredits(user: any, type: RecievedCredit["type"]): number {
-	if (user.is_tutee) {
-		throw new Error("Cannot calculate required credits for a user who is not an ARISTA member.");
-	}
-
+function defaultCreditMap(user: any): Record<RecievedCredit["type"], number> {
 	let creditMap: Record<RecievedCredit["type"], number> = {
 		event: 0,
 		tutoring: 0,
@@ -43,95 +44,56 @@ export function calculateRequiredCredits(user: any, type: RecievedCredit["type"]
 	};
 
 	if (user.graduationYear == 2027) {
-		// seniors
-		creditMap = {
-			event: 22,
-			tutoring: 6,
-			other: 6
-		};
-		if (user.committees.includes("events")) {
-			creditMap = {
-				event: 0,
-				tutoring: 6,
-				other: 4
-			};
-		}
-		if (user.committees.includes("operations")) {
-			creditMap = {
-				event: 16,
-				tutoring: 5,
-				other: 4
-			};
-		}
-		if (user.committees.includes("web")) {
-			creditMap = {
-				event: 18,
-				tutoring: 6,
-				other: 4
-			};
-		}
+		creditMap = { event: 22, tutoring: 6, other: 6 };
+		if (user.committees.includes("events")) creditMap = { event: 0, tutoring: 6, other: 4 };
+		if (user.committees.includes("operations")) creditMap = { event: 16, tutoring: 6, other: 4 };
+		if (user.committees.includes("web")) creditMap = { event: 18, tutoring: 6, other: 4 };
 	} else if (user.graduationYear == 2028) {
-		// juniors
-		creditMap = {
-			event: 25,
-			tutoring: 6,
-			other: 6
-		};
-		if (user.committees.includes("events")) {
-			creditMap = {
-				event: 0,
-				tutoring: 6,
-				other: 4
-			};
-		}
-		if (user.committees.includes("operations")) {
-			creditMap = {
-				event: 18,
-				tutoring: 5,
-				other: 4
-			};
-		}
-		if (user.committees.includes("web")) {
-			creditMap = {
-				event: 22,
-				tutoring: 6,
-				other: 5
-			};
-		}
+		creditMap = { event: 18, tutoring: 5, other: 6 };
+		if (user.committees.includes("events")) creditMap = { event: 0, tutoring: 5, other: 4 };
+		if (user.committees.includes("operations")) creditMap = { event: 12, tutoring: 5, other: 4 };
+		if (user.committees.includes("web")) creditMap = { event: 14, tutoring: 5, other: 4 };
 	} else if (user.graduationYear == 2029) {
-		// sophomores
-		creditMap = {
-			event: 25,
-			tutoring: 6,
-			other: 6
-		};
-		if (user.committees.includes("events")) {
-			creditMap = {
-				event: 0,
-				tutoring: 6,
-				other: 4
-			};
-		}
-		if (user.committees.includes("operations")) {
-			creditMap = {
-				event: 18,
-				tutoring: 5,
-				other: 4
-			};
-		}
-		if (user.committees.includes("web")) {
-			creditMap = {
-				event: 22,
-				tutoring: 6,
-				other: 5
-			};
-		}
-	} else {
-		return "Error : Cannot calculate credits for an ARISTA member who isn't a current sophomore/junior/senior" as any as number;
-		// throw new Error("Cannot calculate credits for an ARISTA member who isn't a current sophomore/junior/senior");
+		creditMap = { event: 22, tutoring: 5, other: 6 };
+		if (user.committees.includes("events")) creditMap = { event: 0, tutoring: 5, other: 4 };
+		if (user.committees.includes("operations")) creditMap = { event: 16, tutoring: 5, other: 4 };
+		if (user.committees.includes("web")) creditMap = { event: 18, tutoring: 5, other: 4 };
 	}
 
-	const usesChoiceMode = user?.choice === true || user?.priority === true;
+	return creditMap;
+}
+
+export function calculateRequiredCredits(
+	user: any,
+	type: RecievedCredit["type"],
+	requirements?: RecievedCreditRequirement[],
+	semesterId?: string
+): number {
+	if (!user.member) {
+		throw new Error("Cannot calculate required credits for a user who is not an ARISTA member.");
+	}
+
+	const semesterRequirements = semesterId
+		? requirements?.filter(
+				(requirement) =>
+					requirement.semester === semesterId && requirement.graduationYear === user.graduationYear
+			)
+		: undefined;
+	const matchingCommittee = ["web", "operations", "events"].find((committee) =>
+		user.committees.includes(committee)
+	);
+	const savedRequirement =
+		semesterRequirements?.find((requirement) => requirement.committee === matchingCommittee) ??
+		semesterRequirements?.find((requirement) => requirement.committee === "general");
+	let creditMap = savedRequirement
+		? {
+				event: savedRequirement.eventCredits,
+				tutoring: savedRequirement.tutoringCredits,
+				other: savedRequirement.otherCredits
+			}
+		: defaultCreditMap(user);
+
+	const usesChoiceMode = user?.creditChoice === true;
 	if (usesChoiceMode) {
 		const oldEvent = creditMap.event;
 		creditMap.event = creditMap.tutoring;

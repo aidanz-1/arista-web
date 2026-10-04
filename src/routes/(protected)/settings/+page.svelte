@@ -1,97 +1,83 @@
 <script lang="ts">
+	import { untrack } from "svelte";
+	import { preventDefault } from "svelte/legacy";
 	import type { PageData } from "./$types";
 	import { goto, invalidateAll } from "$app/navigation";
-	import { page } from "$app/stores";
+	import { page } from "$app/state";
 	import { superForm } from "sveltekit-superforms";
-	import { get } from "svelte/store";
 	import { pb, currentUser } from "$lib/pocketbase";
-	import { calculateRequiredCredits } from "$lib/calculateCredits";
+	import { accountThemeStorageKey, activeThemeOverride } from "$lib/theme";
 	import { enhance, deserialize, applyAction } from "$app/forms";
 	import ErrorComponent from "$lib/components/ErrorComponent.svelte";
 	import InputField from "$lib/components/InputField.svelte";
-	import { type ModalSettings, getModalStore, SlideToggle } from "@skeletonlabs/skeleton";
+	import { type ModalSettings, getModalStore } from "$lib/skeleton-compat";
 	import type { ActionResult } from "@sveltejs/kit";
+	import { displayName, initials } from "$lib/displayName";
 
 	const modalStore = getModalStore();
-	let isLoggingOut = false;
-
 	async function logout() {
-		if (isLoggingOut) return;
-		isLoggingOut = true;
-
-		try {
-			await fetch("/logout", { method: "POST" });
-		} finally {
-			// Clearing the browser store also removes the readable pb_auth cookie
-			// if the network request fails before the server can clear it.
-			pb.authStore.clear();
-			currentUser.set(undefined);
-			await goto("/", { invalidateAll: true });
-		}
+		await fetch("/logout", { method: "POST" });
+		pb.authStore.clear();
+		currentUser.set(undefined);
+		await invalidateAll();
+		await goto("/");
 	}
-
-	export let data: PageData;
-	const formObj = superForm(data.form);
-	const { form, errors, constraints } = formObj;
-
-	function resolveChoiceMode(user: { choice?: unknown; priority?: unknown } | null | undefined): boolean {
-		return user?.choice === true || user?.priority === true;
+	interface Props {
+		data: PageData;
 	}
-
-	let choiceForm: HTMLFormElement | null = null;
-	let choiceMode = false;
-	let isChoiceSubmitting = false;
-	let currentChoiceUserId: string | null = null;
-	$: {
+	let { data }: Props = $props();
+	const formObj = superForm(untrack(() => data.form));
+	const { form, errors } = formObj;
+	type ThemePreference = "system" | "light" | "dark";
+	let themeForm: HTMLFormElement | null = $state(null);
+	let themePreference = $state<ThemePreference>("system");
+	let isThemeSubmitting = $state(false);
+	let themeUserId = $state<string | null>(null);
+	$effect(() => {
 		const user = $currentUser;
-		const userId = user?.id ?? null;
-		if (userId !== currentChoiceUserId) {
-			currentChoiceUserId = userId;
-			choiceMode = resolveChoiceMode(user);
+		if (user?.id && user.id !== themeUserId) {
+			themePreference = (user.themePreference ?? "system") as ThemePreference;
+			themeUserId = user.id;
 		}
-	}
-	$: choiceActionResult = ($page.form ?? {}) as {
-		choiceUpdated?: boolean;
-		choiceError?: string;
-	};
-
-	function syncChoiceModeFromStore() {
-		choiceMode = resolveChoiceMode(get(currentUser));
-	}
-
-	function submitChoiceForm() {
-		if (!choiceForm || isChoiceSubmitting) {
-			return;
+	});
+	let profileActionResult = $derived(
+		(page.form ?? {}) as { profileUpdated?: boolean; profileError?: string }
+	);
+	let themeActionResult = $derived(
+		(page.form ?? {}) as { themeUpdated?: boolean; themeError?: string }
+	);
+	function chooseTheme(preference: ThemePreference) {
+		if (!themeForm || isThemeSubmitting || themePreference === preference) return;
+		themePreference = preference;
+		const user = $currentUser;
+		if (user) {
+			currentUser.set({ ...user, themePreference: preference });
+			if (preference === "system") {
+				activeThemeOverride.set(null);
+				window.localStorage.removeItem(accountThemeStorageKey(user.id));
+			} else {
+				activeThemeOverride.set(preference);
+				window.localStorage.setItem(accountThemeStorageKey(user.id), preference);
+			}
 		}
-		isChoiceSubmitting = true;
-		setTimeout(() => {
-			choiceForm?.requestSubmit();
-		}, 0);
+		isThemeSubmitting = true;
+		setTimeout(() => themeForm?.requestSubmit(), 0);
 	}
-
-	async function handleDeleteAccount(
-		event: SubmitEvent & { currentTarget: EventTarget & HTMLFormElement }
-	) {
+	async function handleDeleteAccount(event: Event) {
 		const confirmDelete: ModalSettings = {
 			type: "confirm",
-			title: "Delete account",
-			body: "Are you sure you want to delete your account?",
+			title: "Delete your account?",
+			body: "Your ARISTA account will be deleted and you'll be signed out. This can't be undone.",
+			confirmLabel: "Delete my account",
+			danger: true,
 			response: async (r: boolean) => {
 				if (r) {
-					const data = new FormData();
-					console.log("Deleting account", event.currentTarget);
-					// @ts-ignore
 					const response = await fetch("/settings?/delete_account", {
 						method: "POST",
-						body: data
+						body: new FormData()
 					});
-
 					const result: ActionResult = deserialize(await response.text());
-
-					if (result.type === "success") {
-						// rerun all `load` functions, following the successful update
-						await invalidateAll();
-					}
+					if (result.type === "success") await invalidateAll();
 					logout();
 					applyAction(result);
 				}
@@ -101,127 +87,388 @@
 	}
 </script>
 
-<main class="container mx-auto p-8 space-y-8">
-	<h1 class="h1">Settings</h1>
+<svelte:head><title>Settings | ARISTA</title></svelte:head>
+
+<main class="page settings">
+	<header class="page-header">
+		<div>
+			<h1>Settings</h1>
+		</div>
+	</header>
+
 	{#if $currentUser}
-		<section class="card p-4 w-full text-token">
-			<h3 class="h3">Profile</h3>
-			<p class="mb-4">
-				Please contact <code class="font-bold">stuyaristanycweb@gmail.com</code> with any issues.
-			</p>
-			<p>Name: {$currentUser.name}</p>
-			<p>Email: {$currentUser.email}</p>
-			<p>Graduation Year: {$currentUser.graduationYear}</p>
-			<p>OSIS: {$currentUser.osis}</p>
-			<p>Homeroom: {$currentUser.homeroom}</p>
-			<p>Committees: {$currentUser.committees.join(", ")}</p>
-			<p class="mt-2">
-				Your account is of type
-				<span class="font-bold">"{$currentUser.is_tutee ? "tutee" : "ARISTA member"}"</span>.
-			</p>
-			{#if !$currentUser?.is_tutee}
-			<p class="italic mb-2">
-				Note: If you are NOT an ARISTA member (ie: you are here to be tutored) but your account type
-				is, <span class="underline">please delete your account and make a new one as a member</span>
-				by checking the approriate checkbox.
-			</p>
-				{/if}
-			{#if $currentUser?.is_tutee}
-			<p class="italic mb-2">
-				Note: If you ARE an ARISTA member but your account type
-				isn't, <span class="underline">do not delete your account, contact support.</span>
-			</p>
-				{/if}
-			{#if !$currentUser?.is_tutee}
-					<form
-						bind:this={choiceForm}
-						method="POST"
-						action="?/toggle_choice"
-					class="card p-4 my-4 space-y-3"
-					use:enhance={() => {
-						return async ({ result }) => {
-							try {
-								await applyAction(result);
-								pb.authStore.loadFromCookie(document.cookie);
-								await invalidateAll();
-								pb.authStore.loadFromCookie(document.cookie);
-								syncChoiceModeFromStore();
-							} finally {
-								isChoiceSubmitting = false;
-							}
-						};
-					}}
-					>
-						<h4 class="h4">Credit Requirement Mode</h4>
-						<p class="text-sm">
-							Swap tutoring and event requirements.
-						</p>
-					{#if choiceActionResult.choiceUpdated}
-						<p class="text-sm text-success-600 dark:text-success-500">Requirement mode saved.</p>
-					{/if}
-					{#if choiceActionResult.choiceError}
-						<p class="text-sm text-error-600 dark:text-error-500">{choiceActionResult.choiceError}</p>
-					{/if}
-					<input type="hidden" name="choice" value={choiceMode ? "true" : "false"} />
-						<SlideToggle
-							name="choiceModeToggle"
-							bind:checked={choiceMode}
-							active="bg-primary-500 dark:bg-primary-500"
-							on:click={submitChoiceForm}
+		<div class="settings__layout">
+			<section class="profile panel" aria-labelledby="profile-name">
+				<div class="profile__head">
+					<span class="profile__avatar" aria-hidden="true">{initials($currentUser)}</span>
+					<div>
+						<h2 id="profile-name">{displayName($currentUser)}</h2>
+						<span class="badge" class:badge--success={$currentUser.member}
+							>{$currentUser.member ? "ARISTA member" : "Student account"}</span
 						>
-							{choiceMode ? "More Tutoring Required" : "More Events Required"}
-						</SlideToggle>
-					<p class="text-xs opacity-80">
-						Standard: {calculateRequiredCredits({ ...$currentUser, choice: false, priority: false }, "event")} event /
-						{calculateRequiredCredits({ ...$currentUser, choice: false, priority: false }, "tutoring")} tutoring /
-						{calculateRequiredCredits({ ...$currentUser, choice: false, priority: false }, "other")} other
-					</p>
-					<p class="text-xs opacity-80">
-						Alternative: {calculateRequiredCredits({ ...$currentUser, choice: true, priority: true }, "event")} event /
-						{calculateRequiredCredits({ ...$currentUser, choice: true, priority: true }, "tutoring")} tutoring /
-						{calculateRequiredCredits({ ...$currentUser, choice: true, priority: true }, "other")} other
-					</p>
+					</div>
+				</div>
+				<dl class="profile__details">
+					{#if $currentUser.preferredName}
+						<div class="profile__wide">
+							<dt>Legal name</dt>
+							<dd>{$currentUser.name}</dd>
+						</div>
+					{/if}
+					<div class="profile__wide">
+						<dt>Email</dt>
+						<dd>{$currentUser.email}</dd>
+					</div>
+					<div>
+						<dt>Graduation year</dt>
+						<dd>{$currentUser.graduationYear}</dd>
+					</div>
+					<div>
+						<dt>Homeroom</dt>
+						<dd>{$currentUser.homeroom}</dd>
+					</div>
+					<div>
+						<dt>OSIS</dt>
+						<dd>{$currentUser.osis}</dd>
+					</div>
+					{#if $currentUser.member}
+						<div class="profile__wide">
+							<dt>Committees</dt>
+							<dd>
+								{$currentUser.committees
+									.map((committee) => committee.charAt(0).toUpperCase() + committee.slice(1))
+									.join(", ") || "None yet"}
+							</dd>
+						</div>
+					{/if}
+				</dl>
+				<p class="profile__help">
+					Something wrong here? Email
+					<a class="text-link" href="mailto:stuyaristanycweb@gmail.com"
+						>stuyaristanycweb@gmail.com</a
+					>
+					and the web team will fix it.
+				</p>
+			</section>
+
+			<div class="settings__stack">
+				<section class="panel" aria-labelledby="about-you-title">
+					<h2 id="about-you-title" class="section-title">About you</h2>
+					<form
+						method="POST"
+						action="?/update_profile"
+						class="profile-form"
+						use:enhance={() =>
+							async ({ result }) => {
+								await applyAction(result);
+								await invalidateAll();
+							}}
+					>
+						<div class="profile-form__field">
+							<label for="preferredName">Preferred first name</label>
+							<input
+								id="preferredName"
+								name="preferredName"
+								maxlength="32"
+								autocomplete="given-name"
+								placeholder={$currentUser.name.split(" ")[0]}
+								value={$currentUser.preferredName ?? ""}
+							/>
+						</div>
+						<div class="profile-form__field">
+							<label for="contactInfo">Contact info for tutoring</label>
+							<textarea
+								id="contactInfo"
+								name="contactInfo"
+								maxlength="600"
+								rows="3"
+								placeholder="Instagram, phone number, Discord, best times to reach you"
+								>{data.contactInfo}</textarea
+							>
+						</div>
+						<button type="submit" class="btn btn-primary">Save</button>
+						<p class="panel__status" aria-live="polite">
+							{#if profileActionResult.profileError}
+								<span class="field-error">{profileActionResult.profileError}</span>
+							{:else if profileActionResult.profileUpdated}
+								Saved.
+							{/if}
+						</p>
 					</form>
-				{/if}
-			<form method="POST" on:submit|preventDefault={handleDeleteAccount} action="?/delete_account">
-				<button type="submit" class="btn variant-filled-error">Delete My Account</button>
-			</form>
-			<br />
-			<button type="button" on:click={logout} class="btn variant-outline-primary">Logout</button>
-		</section>
-		<section>
-			<form
-				method="POST"
-				action="?/change_password"
-				class="card p-4 w-full text-token space-y-4"
-				use:enhance
-			>
-				<ErrorComponent errors={$errors} />
-				<h3 class="h3">Change password</h3>
+				</section>
 
-				<InputField
-					form={formObj}
-					field="password"
-					label="Enter your current password:"
-					type="password"
-				/>
-				<InputField
-					form={formObj}
-					field="newPassword"
-					label="Enter your new password:"
-					type="password"
-				/>
-				<InputField
-					form={formObj}
-					field="newPasswordConfirm"
-					label="Confirm your new password:"
-					type="password"
-				/>
+				<section class="panel" aria-labelledby="appearance-title">
+					<h2 id="appearance-title" class="section-title appearance__title">Appearance</h2>
+					<form
+						bind:this={themeForm}
+						method="POST"
+						action="?/update_theme_preference"
+						use:enhance={() =>
+							async ({ result }) => {
+								try {
+									await applyAction(result);
+									await invalidateAll();
+								} finally {
+									isThemeSubmitting = false;
+								}
+							}}
+					>
+						<input type="hidden" name="themePreference" value={themePreference} />
+						<div class="segmented" role="group" aria-label="Color mode">
+							{#each [["system", "Match my device"], ["light", "Light"], ["dark", "Dark"]] as [value, label]}
+								<button
+									type="button"
+									class:active={themePreference === value}
+									aria-pressed={themePreference === value}
+									onclick={() => chooseTheme(value as ThemePreference)}>{label}</button
+								>
+							{/each}
+						</div>
+					</form>
+					<p class="panel__status" aria-live="polite">
+						{#if themeActionResult.themeError}
+							<span class="field-error">{themeActionResult.themeError}</span>
+						{:else if themeActionResult.themeUpdated}
+							Saved.
+						{/if}
+					</p>
+				</section>
 
-				<button type="submit" class="btn variant-filled">Change password</button>
-			</form>
+				<section class="panel" aria-labelledby="password-title">
+					<h2 id="password-title" class="section-title">Change password</h2>
+					<form method="POST" action="?/change_password" class="password-form" use:enhance>
+						<ErrorComponent errors={$errors} />
+						<InputField
+							form={formObj}
+							field="password"
+							label="Current password"
+							type="password"
+							autocomplete="current-password"
+						/>
+						<InputField
+							form={formObj}
+							field="newPassword"
+							label="New password"
+							type="password"
+							autocomplete="new-password"
+						/>
+						<InputField
+							form={formObj}
+							field="newPasswordConfirm"
+							label="Confirm new password"
+							type="password"
+							autocomplete="new-password"
+						/>
+						<button type="submit" class="btn btn-primary">Update password</button>
+					</form>
+				</section>
+			</div>
+		</div>
+
+		<section class="account" aria-label="Account">
+			<button type="button" onclick={logout} class="btn">Sign out</button>
+			<div class="account__danger">
+				<div>
+					<h2>Delete account</h2>
+					<p>Permanently remove your ARISTA account.</p>
+				</div>
+				<form
+					method="POST"
+					onsubmit={preventDefault(handleDeleteAccount)}
+					action="?/delete_account"
+				>
+					<button type="submit" class="btn btn-danger">Delete account</button>
+				</form>
+			</div>
 		</section>
 	{:else}
-		<h2 class="h2">You must be logged in to view this page.</h2>
+		<div class="empty-state">
+			<h2>Sign in to see your settings.</h2>
+			<a class="btn btn-primary" href="/login">Sign in</a>
+		</div>
 	{/if}
 </main>
+
+<style>
+	.settings__layout {
+		display: grid;
+		grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+		gap: 1.25rem;
+		align-items: start;
+	}
+	.settings__stack {
+		display: grid;
+		gap: 1.25rem;
+	}
+	.profile {
+		position: sticky;
+		top: 5.5rem;
+		display: grid;
+		gap: 1.25rem;
+	}
+	.profile__head {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+	.profile__head > div {
+		display: grid;
+		justify-items: start;
+		gap: 0.35rem;
+	}
+	.profile__head h2 {
+		font-size: var(--text-xl);
+	}
+	.profile__avatar {
+		display: grid;
+		flex: 0 0 auto;
+		place-items: center;
+		width: 3.5rem;
+		height: 3.5rem;
+		border-radius: 50%;
+		background: var(--seal);
+		color: #fff;
+		font-family: var(--font-display);
+		font-size: 1.25rem;
+		font-weight: 600;
+	}
+	:global(.dark) .profile__avatar {
+		background: var(--action);
+		color: var(--on-action);
+	}
+	.profile__details {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+		margin: 0;
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--line);
+	}
+	.profile__wide {
+		grid-column: 1 / -1;
+	}
+	.profile__details dt {
+		color: var(--muted);
+		font-size: var(--text-xs);
+		font-weight: 600;
+	}
+	.profile__details dd {
+		margin: 0.15rem 0 0;
+		font-weight: 500;
+		overflow-wrap: anywhere;
+		font-variant-numeric: tabular-nums;
+	}
+	.profile__help {
+		margin: 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+
+	.panel__status {
+		min-height: 1.25rem;
+		margin: 0.6rem 0 0;
+		color: var(--success);
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	.segmented {
+		display: inline-flex;
+		flex-wrap: wrap;
+		padding: 0.25rem;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-pill);
+		background: var(--surface-sunken);
+	}
+	.segmented button {
+		min-height: 2.5rem;
+		padding: 0.35rem 1.1rem;
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--muted);
+		font: inherit;
+		font-size: var(--text-sm);
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			background-color var(--dur-2) var(--ease-out),
+			color var(--dur-2) var(--ease-out);
+	}
+	.segmented button.active {
+		background: var(--surface);
+		color: var(--ink);
+		box-shadow:
+			0 1px 2px rgb(22 39 90 / 12%),
+			0 0 0 1px var(--line);
+	}
+	.appearance__title {
+		margin-bottom: 1rem;
+	}
+	.profile-form {
+		display: grid;
+		justify-items: start;
+		gap: 1rem;
+		margin-top: 1rem;
+	}
+	.profile-form__field {
+		display: grid;
+		gap: 0.4rem;
+		width: 100%;
+	}
+	.profile-form__field label {
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	.profile-form .panel__status {
+		margin: 0;
+	}
+	.password-form {
+		display: grid;
+		justify-items: start;
+		gap: 1rem;
+		margin-top: 1rem;
+	}
+	.password-form > :global(*:not(.btn)) {
+		width: 100%;
+	}
+
+	.account {
+		display: grid;
+		justify-items: start;
+		gap: 1.25rem;
+		margin-top: clamp(2rem, 5vw, 3rem);
+		padding-top: clamp(1.5rem, 4vw, 2rem);
+		border-top: 1px solid var(--line);
+	}
+	.account__danger {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		width: 100%;
+		padding: 1.1rem 1.25rem;
+		border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--line));
+		border-radius: var(--radius-panel);
+	}
+	.account__danger h2 {
+		font-family: var(--font-text);
+		font-size: var(--text-base);
+		font-weight: 650;
+		letter-spacing: 0;
+	}
+	.account__danger p {
+		margin: 0.2rem 0 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+
+	@media (max-width: 860px) {
+		.settings__layout {
+			grid-template-columns: 1fr;
+		}
+		.profile {
+			position: static;
+		}
+	}
+</style>

@@ -1,117 +1,82 @@
 <script lang="ts">
 	import { onMount } from "svelte";
 	import { browser } from "$app/environment";
-
-	let isIOS = false;
-	let isAndroid = false;
-	let browserName = "";
-
+	let platform = $state<"ios" | "android" | "other">("other");
 	onMount(() => {
 		if (!browser) return;
-
-		const userAgent = navigator.userAgent.toLowerCase();
-		isIOS = /iphone|ipad|ipod/.test(userAgent);
-		isAndroid = /android/.test(userAgent);
-
-		// Detect browser
-		if (isIOS) {
-			browserName = /safari/.test(userAgent) ? "Safari" : "your browser";
-		} else if (isAndroid) {
-			if (/chrome/.test(userAgent)) browserName = "Chrome";
-			else if (/firefox/.test(userAgent)) browserName = "Firefox";
-			else browserName = "your browser";
-		}
+		const ua = navigator.userAgent.toLowerCase();
+		platform = /iphone|ipad|ipod/.test(ua) ? "ios" : /android/.test(ua) ? "android" : "other";
 	});
 </script>
 
-<svelte:head>
-	<title>Install Arista - Add to Home Screen</title>
-</svelte:head>
+<svelte:head><title>Add ARISTA to your home screen</title></svelte:head>
 
-<main class="container mx-auto p-4 md:p-8 space-y-6">
-	<div class="text-center space-y-4">
-		<h1 class="h1">📱 Install Arista</h1>
-		<p class="text-lg opacity-75">Get app-like experience on your device</p>
-	</div>
-
-	<div class="grid md:grid-cols-2 gap-6">
-		<!-- iOS Instructions -->
-		<div
-			class="bg-surface-100-800-token border border-surface-300-600-token rounded-lg p-6 {isIOS
-				? 'ring-2 ring-primary-500'
-				: ''}"
-		>
-			<div class="flex items-center space-x-2 mb-4">
-				<span class="text-2xl">🍎</span>
-				<h2 class="h2">iPhone & iPad</h2>
-			</div>
-			<ol class="space-y-3 text-sm">
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">1.</span>
-					<span>Open this site in <strong>Safari</strong></span>
-				</li>
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">2.</span>
-					<span
-						>Tap the <strong>Share</strong> button <span class="text-lg">⎋</span> (bottom center)</span
-					>
-				</li>
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">3.</span>
-					<span>Scroll down and tap <strong>"Add to Home Screen"</strong></span>
-				</li>
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">4.</span>
-					<span>Tap <strong>"Add"</strong> in the top right</span>
-				</li>
-			</ol>
-			{#if isIOS}
-				<div class="mt-4 p-3 bg-primary-500/10 rounded-lg">
-					<p class="text-sm text-primary-600 dark:text-primary-400">
-						<strong>You're on iOS!</strong> Follow these steps to install.
-					</p>
-				</div>
-			{/if}
+<main class="page install">
+	<header class="page-header">
+		<div>
+			<h1>Keep ARISTA on your home screen.</h1>
+			<p>It opens like an app, so tutoring, events, and credits are one tap away.</p>
 		</div>
+	</header>
 
-		<!-- Android Instructions -->
-		<div
-			class="bg-surface-100-800-token border border-surface-300-600-token rounded-lg p-6 {isAndroid
-				? 'ring-2 ring-primary-500'
-				: ''}"
-		>
-			<div class="flex items-center space-x-2 mb-4">
-				<span class="text-2xl">🤖</span>
-				<h2 class="h2">Android</h2>
-			</div>
-			<ol class="space-y-3 text-sm">
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">1.</span>
-					<span>Open this site in <strong>Chrome</strong></span>
-				</li>
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">2.</span>
-					<span>Tap the <strong>menu</strong> (⋮) in the top right</span>
-				</li>
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">3.</span>
-					<span>Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong></span>
-				</li>
-				<li class="flex items-start space-x-2">
-					<span class="font-bold text-primary-500">4.</span>
-					<span>Tap <strong>"Install"</strong> or <strong>"Add"</strong></span>
-				</li>
+	<section class="install__options" aria-label="How to add ARISTA">
+		<article class:current={platform === "ios"}>
+			<h2>iPhone or iPad</h2>
+			{#if platform === "ios"}<span class="badge badge--success">Your device</span>{/if}
+			<ol>
+				<li>Open this page in Safari.</li>
+				<li>Tap the Share button.</li>
+				<li>Choose Add to Home Screen.</li>
+				<li>Tap Add.</li>
 			</ol>
-			{#if isAndroid}
-				<div class="mt-4 p-3 bg-primary-500/10 rounded-lg">
-					<p class="text-sm text-primary-600 dark:text-primary-400">
-						<strong>You're on Android!</strong> You may also see a banner at the bottom to install directly.
-					</p>
-				</div>
-			{/if}
-		</div>
-	</div>
-	<div class="text-center">
-		<a href="/" class="btn variant-filled-primary">← Back to Home</a>
-	</div>
+		</article>
+		<article class:current={platform === "android"}>
+			<h2>Android</h2>
+			{#if platform === "android"}<span class="badge badge--success">Your device</span>{/if}
+			<ol>
+				<li>Open this page in Chrome.</li>
+				<li>Open the menu in the top corner.</li>
+				<li>Choose Install app or Add to Home screen.</li>
+				<li>Confirm.</li>
+			</ol>
+		</article>
+	</section>
 </main>
+
+<style>
+	.install__options {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1rem;
+	}
+	article {
+		display: grid;
+		align-content: start;
+		justify-items: start;
+		gap: 0.75rem;
+		padding: clamp(1.25rem, 3vw, 1.75rem);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+	}
+	article.current {
+		border-color: transparent;
+		background: var(--wash);
+	}
+	h2 {
+		font-size: var(--text-lg);
+	}
+	ol {
+		display: grid;
+		gap: 0.5rem;
+		margin: 0.25rem 0 0;
+		padding-left: 1.25rem;
+		color: var(--muted);
+		list-style: decimal;
+	}
+	@media (max-width: 640px) {
+		.install__options {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

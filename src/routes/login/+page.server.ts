@@ -2,7 +2,8 @@ import { redirect } from "@sveltejs/kit";
 import type { Actions } from "./$types";
 import { z } from "zod";
 import { setError, superValidate, fail } from "sveltekit-superforms";
-import { zod } from 'sveltekit-superforms/adapters';
+import { zod4 as zod } from "sveltekit-superforms/adapters";
+import { getSafeRedirectTarget } from "$lib/safeRedirect";
 
 const LoginPageSchema = z.object({
 	email: z.string().email(),
@@ -35,11 +36,6 @@ export const actions: Actions = {
 		}
 
 		const redirectTo = url.searchParams.get("redirectTo");
-		if (redirectTo) {
-			// always have slash in front so no malicous URL inserted
-			throw redirect(303, "/" + redirectTo.slice(1));
-		} else {
-			throw redirect(303, "/");
-		}
+		throw redirect(303, getSafeRedirectTarget(redirectTo, url.origin));
 	}
 };

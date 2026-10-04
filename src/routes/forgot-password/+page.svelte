@@ -1,52 +1,67 @@
 <script lang="ts">
+	import { untrack } from "svelte";
 	import { applyAction, enhance } from "$app/forms";
 	import { superForm } from "sveltekit-superforms";
 	import type { PageData } from "./$types";
 	import ErrorComponent from "$lib/components/ErrorComponent.svelte";
 	import InputField from "$lib/components/InputField.svelte";
-	import { page } from "$app/stores";
+	import AuthLayout from "$lib/components/AuthLayout.svelte";
+	import { page } from "$app/state";
 
-	let message: string;
-	$: message = $page.url.searchParams.get("message") ?? "";
+	let message: string = $derived(page.url.searchParams.get("message") ?? "");
 
-	export let data: PageData;
-	const formObj = superForm(data.form);
-	const { form, errors, constraints } = formObj;
+	interface Props {
+		data: PageData;
+	}
+
+	let { data }: Props = $props();
+	const formObj = superForm(untrack(() => data.form));
+	const { errors } = formObj;
+	let submitting = $state(false);
 </script>
 
-<main class="container mx-auto p-8 space-y-8">
-	<hgroup>
-		<h1 class="h1">Forgot Password</h1>
-		<p>Enter your email to receive a password reset link.</p>
-	</hgroup>
+<svelte:head><title>Reset password | ARISTA</title></svelte:head>
 
+<AuthLayout
+	title="Reset your password."
+	description="Enter the email on your ARISTA account and we'll send you a link to choose a new password."
+>
 	{#if message}
-		<aside class="alert variant-filled-success mb-4">
-			<b>{message}</b>
-		</aside>
+		<p class="notice notice--success">{message}</p>
 	{/if}
 	<ErrorComponent errors={$errors} />
 
 	<form
 		method="POST"
 		use:enhance={() => {
+			submitting = true;
 			return async ({ result }) => {
 				await applyAction(result);
+				submitting = false;
 			};
 		}}
-		class="card p-4 w-full text-token space-y-4"
 	>
 		<InputField
 			form={formObj}
 			field="email"
-			label="Enter your email:"
-			placeholder="email@stuy.edu"
+			label="Email"
+			placeholder="you@stuy.edu"
 			type="email"
+			autocomplete="email"
 		/>
 
-		<input type="submit" class="btn variant-filled" value="Send reset link" />
-		<p id="back_to_login">
-			<a href="/login" class="anchor">Back to login</a>
-		</p>
+		<button type="submit" class="btn btn-primary btn-lg" disabled={submitting}>
+			{submitting ? "Sending…" : "Send reset link"}
+		</button>
+		<p class="auth-alt"><a href="/login" class="text-link">Back to sign in</a></p>
 	</form>
-</main> 
+</AuthLayout>
+
+<style>
+	form .btn-lg {
+		margin-top: 0.4rem;
+	}
+	.notice {
+		margin: 2rem 0 0;
+	}
+</style>

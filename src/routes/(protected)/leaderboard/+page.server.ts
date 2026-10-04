@@ -1,15 +1,34 @@
-import type { PageServerLoad } from './$types';
-import type { RecievedCredit, RecievedPublicUserData } from '$lib/db_types';
+import type { PageServerLoad } from "./$types";
+import type { RecievedCredit, RecievedCreditSemester, RecievedPublicUserData } from "$lib/db_types";
 
 export const load = (async ({ locals }) => {
-    const users = await locals.pb.collection('publicUsers').getFullList({
-        fields: 'id,name'
-    }) as unknown as RecievedPublicUserData[];
+	if (!locals.user || !locals.user.member) {
+		return {
+			users: [],
+			allCredits: [],
+			creditSemesters: []
+		};
+	}
 
-    const allCredits = await locals.pb.collection('credits').getFullList() as unknown as RecievedCredit[];
+	// Names come from the public view: the users collection itself only exposes
+	// each person's own record.
+	const users = (await locals.pb.collection("publicUsers").getFullList({
+		fields: "id,name,preferredName",
+		requestKey: null
+	})) as unknown as RecievedPublicUserData[];
 
-    return {
-        users,
-        allCredits
-    };
+	const allCredits = (await locals.pb.collection("credits").getFullList({
+		fields: "user,type,credits,semester",
+		requestKey: null
+	})) as unknown as RecievedCredit[];
+	const creditSemesters = (await locals.pb.collection("creditSemesters").getFullList({
+		sort: "key",
+		requestKey: null
+	})) as unknown as RecievedCreditSemester[];
+
+	return {
+		users,
+		allCredits,
+		creditSemesters
+	};
 }) satisfies PageServerLoad;

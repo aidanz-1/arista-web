@@ -1,138 +1,973 @@
 <script lang="ts">
-	// @ts-ignore
-	import Calendar from "@event-calendar/core";
-	// @ts-ignore
-	import DayGrid from "@event-calendar/day-grid";
-	// @ts-ignore
-	import ListView from "@event-calendar/list";
-	import { modeCurrent } from "@skeletonlabs/skeleton";
-	import { goto } from "$app/navigation";
+	import { onMount } from "svelte";
 	import type { RecievedEvent } from "$lib/db_types";
-	import { SlideToggle } from "@skeletonlabs/skeleton";
 
-	export let events: RecievedEvent[];
-	let filteredEvents: RecievedEvent[];
-	let selectedPlace = "All";
-	let signupStatus = false;
+	type CalendarState = {
+		month?: string | null;
+		view?: string | null;
+		place?: string | null;
+		open?: string | null;
+		day?: string | null;
+	};
 
+	interface Props {
+		events: RecievedEvent[];
+		initialState?: CalendarState;
+	}
 
+	let { events, initialState = {} }: Props = $props();
+	const returnPositionKey = "arista-events-return-position";
+	const monthPattern = /^(\d{4})-(\d{2})$/;
 
-	// Svelte Calendar Component:
-	// https://github.com/vkurko/calendar
-	let plugins = [DayGrid, ListView];
-	
+	function parseMonth(value?: string | null) {
+		const match = value?.match(monthPattern);
+		if (!match) return null;
+		const year = Number(match[1]);
+		const month = Number(match[2]);
+		if (month < 1 || month > 12) return null;
+		return new Date(year, month - 1, 1);
+	}
+
+	function isDateKey(value?: string | null) {
+		return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+	}
+
+	let selectedPlace = $state("All");
+	let openOnly = $state(false);
+	let listView = $state(false);
+	let displayedMonth = $state(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+	let selectedDateKey = $state("");
+	let mounted = $state(false);
+
 	const today = new Date();
 	today.setHours(0, 0, 0, 0);
-	$: filteredEvents = events.filter(event =>
-    (selectedPlace === "All" || event.place === selectedPlace) && (!signupStatus || (!event.signupStatus && event.end_time >= today))
-  	);
+	const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+	// Each place keeps one hue everywhere it appears (legend, chips, badges).
+	// The values live in CSS as --place-* so dark mode can lift them.
+	const placeLegend = [
+		{ place: "In Stuy", label: "Stuy" },
+		{ place: "Queens", label: "Queens" },
+		{ place: "Manhattan", label: "Manhattan" },
+		{ place: "Brooklyn", label: "Brooklyn" },
+		{ place: "Bronx", label: "Bronx" },
+		{ place: "Staten Island", label: "Staten Is." },
+		{ place: "Other", label: "Other" }
+	];
 
-	$: options = {
-		view: "dayGridMonth",
-		headerToolbar: {
-			start: "prev,next",
-			center: "title",
-			end: "dayGridMonth,listMonth"
-		},
-
-		events: filteredEvents.map(transformEvent),
-		eventClick: (info: { event: CalendarEvent; el: HTMLElement }) => {
-			console.log(info.event.title);
-			goto("/events/view/" + info.event.id);
-		}
-	};
-
-	type CalendarEvent = {
-		id: string;
-		resourceIds?: string[];
-		allDay?: boolean;
-		start: Date;
-		end: Date;
-		title: string;
-		editable?: boolean;
-		startEditable?: boolean;
-		durationEditable?: boolean;
-		display?: "auto" | "background";
-		backgroundColor?: string;
-		textColor?: string;
-		extendedProps?: any;
-	};
-
-	function transformEvent(event: RecievedEvent): CalendarEvent {
-		return {
-			id: event.id,
-			title: event.signupStatus ? "[Sign-Ups Closed] " + event.name + " (" + event.signed_up.length + "/" + event.intendedVolunteers + " Volunteers)"  : event.name + " (" + event.signed_up.length + "/" + event.intendedVolunteers + " Volunteers)",
-			start: event.start_time,
-			end: event.end_time,
-			backgroundColor: 
-				event.place === "In Stuy" ? "#A78BFA" :
-  				event.place === "Queens" ? "#60A5FA" :
-				event.place === "Manhattan" ? "#34D399" :
-				event.place === "Brooklyn" ? "#F472B6" :
-				event.place === "Bronx" ? "#FBBF24" :
-				event.place === "Staten Island" ? "#F87171" :
-				event.place === "Other" ? "#9CA3AF" :
-  				"#CBD5E1"
-};
+	function eventDate(event: RecievedEvent) {
+		return new Date(event.start_time);
 	}
+
+	function dateKey(date: Date) {
+		return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+	}
+
+	function eventState(event: RecievedEvent) {
+		return event.isComplete ? "complete" : event.signupStatus ? "closed" : "open";
+	}
+
+	function eventTime(event: RecievedEvent) {
+		const timeOptions: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+		const start = eventDate(event);
+		const end = new Date(event.end_time);
+		return `${start.toLocaleTimeString(undefined, timeOptions)}–${end.toLocaleTimeString(undefined, timeOptions)}`;
+	}
+
+	function placeClass(place: string) {
+		return (place || "Other").toLowerCase().replaceAll(" ", "-");
+	}
+
+	function placeLabel(place: string) {
+		return placeLegend.find((item) => item.place === place)?.label ?? place;
+	}
+
+	function stateLabel(event: RecievedEvent) {
+		const state = eventState(event);
+		return state === "complete" ? "Complete" : state === "closed" ? "Sign-ups closed" : "Open";
+	}
+
+	function isToday(date: Date) {
+		return dateKey(date) === dateKey(today);
+	}
+
+	const summary = $derived.by(() => {
+		const count =
+			monthEvents.length === 0
+				? "No events"
+				: `${monthEvents.length} event${monthEvents.length === 1 ? "" : "s"}`;
+		const place = selectedPlace === "All" ? "" : ` in ${selectedPlace}`;
+		const open = openOnly ? " open for sign-ups" : "";
+		return `${count}${place}${open} this month.`;
+	});
+
+	const monthLabel = $derived(
+		displayedMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })
+	);
+
+	function eventsOn(date: Date) {
+		const key = dateKey(date);
+		return monthEvents.filter((event) => dateKey(eventDate(event)) === key);
+	}
+
+	function changeMonth(offset: number) {
+		displayedMonth = new Date(displayedMonth.getFullYear(), displayedMonth.getMonth() + offset, 1);
+		selectedDateKey = dateKey(displayedMonth);
+	}
+
+	function applyStateToUrl(url: URL) {
+		const month = `${displayedMonth.getFullYear()}-${String(displayedMonth.getMonth() + 1).padStart(2, "0")}`;
+		url.searchParams.set("month", month);
+		url.searchParams.set("view", listView ? "list" : "month");
+		selectedPlace === "All"
+			? url.searchParams.delete("place")
+			: url.searchParams.set("place", selectedPlace);
+		openOnly ? url.searchParams.set("open", "1") : url.searchParams.delete("open");
+		selectedDateKey ? url.searchParams.set("day", selectedDateKey) : url.searchParams.delete("day");
+	}
+
+	function selectDayFromBox(event: MouseEvent) {
+		const target = event.target as HTMLElement;
+		if (target.closest("a, button")) return;
+		const key = target.closest<HTMLElement>(".day")?.dataset.date;
+		if (key) selectedDateKey = key;
+	}
+
+	function scrollContainer() {
+		const container = document.querySelector<HTMLElement>(".app-shell > main");
+		return container;
+	}
+
+	function saveReturnPosition() {
+		const url = new URL(window.location.href);
+		applyStateToUrl(url);
+		window.history.replaceState(window.history.state, "", url);
+		window.sessionStorage.setItem(
+			returnPositionKey,
+			JSON.stringify({
+				path: `${url.pathname}${url.search}`,
+				scrollY: scrollContainer()?.scrollTop ?? window.scrollY
+			})
+		);
+	}
+
+	const filteredEvents = $derived(
+		events.filter(
+			(event) =>
+				(selectedPlace === "All" || event.place === selectedPlace) &&
+				(!openOnly ||
+					(!event.signupStatus && !event.isComplete && new Date(event.end_time) >= today))
+		)
+	);
+	const monthEvents = $derived(
+		filteredEvents
+			.filter(
+				(event) =>
+					eventDate(event).getFullYear() === displayedMonth.getFullYear() &&
+					eventDate(event).getMonth() === displayedMonth.getMonth()
+			)
+			.sort((first, second) => eventDate(first).getTime() - eventDate(second).getTime())
+	);
+	const calendarDays = $derived.by(() => {
+		const start = new Date(displayedMonth.getFullYear(), displayedMonth.getMonth(), 1);
+		start.setDate(start.getDate() - start.getDay());
+		return Array.from(
+			{ length: 42 },
+			(_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)
+		);
+	});
+	const selectedDay = $derived(
+		calendarDays.find((day) => dateKey(day) === selectedDateKey) ?? displayedMonth
+	);
+	const selectedEvents = $derived(eventsOn(selectedDay));
+
+	onMount(() => {
+		const restoredMonth = parseMonth(initialState.month);
+		if (restoredMonth) displayedMonth = restoredMonth;
+		if (initialState.place) selectedPlace = initialState.place;
+		openOnly = initialState.open === "1";
+		listView = initialState.view === "list";
+		if (isDateKey(initialState.day)) selectedDateKey = initialState.day!;
+		else if (
+			displayedMonth.getFullYear() === today.getFullYear() &&
+			displayedMonth.getMonth() === today.getMonth()
+		)
+			selectedDateKey = dateKey(today);
+
+		const setResponsiveView = () => {
+			if (!initialState.view) listView = window.innerWidth < 640;
+		};
+		setResponsiveView();
+		mounted = true;
+
+		try {
+			const saved = JSON.parse(window.sessionStorage.getItem(returnPositionKey) ?? "null") as {
+				path?: string;
+				scrollY?: number;
+			} | null;
+			if (saved?.path === `${window.location.pathname}${window.location.search}`) {
+				window.sessionStorage.removeItem(returnPositionKey);
+				requestAnimationFrame(() =>
+					requestAnimationFrame(() => {
+						const container = scrollContainer();
+						if (container) container.scrollTo({ top: saved.scrollY ?? 0 });
+						else window.scrollTo(0, saved.scrollY ?? 0);
+					})
+				);
+			}
+		} catch {
+			window.sessionStorage.removeItem(returnPositionKey);
+		}
+
+		window.addEventListener("resize", setResponsiveView);
+		return () => window.removeEventListener("resize", setResponsiveView);
+	});
+
+	$effect(() => {
+		if (!mounted || typeof window === "undefined") return;
+		const url = new URL(window.location.href);
+		applyStateToUrl(url);
+		if (`${url.pathname}${url.search}` !== `${window.location.pathname}${window.location.search}`) {
+			window.history.replaceState(window.history.state, "", url);
+		}
+	});
 </script>
 
-<div class="flex flex-wrap gap-3 items-center mb-4">
-
-	<div class="flex items-center gap-2">
-		<label for="signupStatus" class="text-sm whitespace-nowrap">
-			Show Open Events Only
-		</label>
-		<SlideToggle
-			name="signupStatus"
-			bind:checked={signupStatus}
-			active="bg-primary-500 dark:bg-primary-500"
-		/>
-	</div>
-
-	<div class="flex items-center gap-2">
-		<label for="place-filter" class="text-sm whitespace-nowrap">
-			Place
-		</label>
-
-		<select
-			id="place-filter"
-			name="place"
-			bind:value={selectedPlace}
-			class="rounded-lg border border-surface-300 bg-surface-50 
-			text-surface-900 dark:bg-surface-800 dark:text-surface-50 p-1 
-			text-sm"
+{#snippet monthNav()}
+	<div class="month-nav">
+		<button
+			type="button"
+			class="month-arrow"
+			aria-label="Previous month"
+			onclick={() => changeMonth(-1)}
 		>
-			<option value="All">All</option>
-			<option value="In Stuy">In Stuy</option>
-			<option value="Queens">Queens</option>
-			<option value="Manhattan">Manhattan</option>
-			<option value="Brooklyn">Brooklyn</option>
-			<option value="Bronx">Bronx</option>
-			<option value="Staten Island">Staten Island</option>
-			<option value="Other">Other</option>
-		</select>
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
+		</button>
+		<h2 aria-live="polite">{monthLabel}</h2>
+		<button
+			type="button"
+			class="month-arrow"
+			aria-label="Next month"
+			onclick={() => changeMonth(1)}
+		>
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.5 6 6 6-6 6" /></svg>
+		</button>
 	</div>
+{/snippet}
 
-	<div class="flex flex-wrap gap-x-4 gap-y-1 text-xs items-center">
-		{#each [
-			{ place: "In Stuy", color: "#A78BFA" },
-			{ place: "Queens", color: "#60A5FA" },
-			{ place: "Manhattan", color: "#34D399" },
-			{ place: "Brooklyn", color: "#F472B6" },
-			{ place: "Bronx", color: "#FBBF24" },
-			{ place: "Staten Island", color: "#F87171" },
-			{ place: "Other", color: "#9CA3AF" },
-		] as { place, color }}
-			<div class="flex items-center gap-1">
-				<span class="inline-block w-3 h-3 rounded-full" style="background-color: {color}"></span>
-				<span>{place}</span>
+<section class="planner" aria-label="ARISTA events">
+	<div class="planner__toolbar">
+		{@render monthNav()}
+		<div class="planner__filters">
+			<div class="segmented" role="group" aria-label="Calendar view">
+				<button
+					type="button"
+					class:active={!listView}
+					aria-pressed={!listView}
+					onclick={() => (listView = false)}>Month</button
+				>
+				<button
+					type="button"
+					class:active={listView}
+					aria-pressed={listView}
+					onclick={() => (listView = true)}>List</button
+				>
 			</div>
-		{/each}
+			<label class="switch">
+				<input type="checkbox" role="switch" bind:checked={openOnly} />
+				<span class="switch__track" aria-hidden="true"></span>
+				<span>Open only</span>
+			</label>
+			<label class="place-filter">
+				<span class="sr-only">Place</span>
+				<select bind:value={selectedPlace}>
+					<option value="All">All places</option>
+					{#each placeLegend as item}<option value={item.place}>{item.place}</option>{/each}
+				</select>
+			</label>
+		</div>
 	</div>
 
-</div>
+	<p class="planner__summary">{summary}</p>
 
-<div class={!$modeCurrent ? "ec-dark" : ""}>
-	<Calendar {plugins} {options} />
-</div>
+	{#if listView}
+		<section class="event-list" aria-label={`${monthLabel} events`}>
+			{#if monthEvents.length}
+				<ul>
+					{#each monthEvents as event (event.id)}
+						<li>
+							<a
+								href={"/events/view/" + event.id}
+								onclick={saveReturnPosition}
+								class:is-muted={eventState(event) !== "open"}
+							>
+								<time datetime={eventDate(event).toISOString()}>
+									<span>{eventDate(event).toLocaleDateString(undefined, { weekday: "short" })}</span
+									>
+									<b>{eventDate(event).getDate()}</b>
+								</time>
+								<div class="event-list__main">
+									<strong>{event.name}</strong>
+									<span>{eventTime(event)}{event.location ? `, ${event.location}` : ""}</span>
+								</div>
+								<div class="event-list__meta">
+									{#if event.place.trim()}
+										<span class="place-tag place--{placeClass(event.place)}"
+											>{placeLabel(event.place)}</span
+										>
+									{/if}
+									<span class="badge state--{eventState(event)}">{stateLabel(event)}</span>
+									<span class="event-list__count"
+										>{event.signed_up.length} of {event.intendedVolunteers}</span
+									>
+								</div>
+							</a>
+						</li>
+					{/each}
+				</ul>
+			{:else}
+				<div class="empty-state">
+					<h3>Nothing matches these filters in {monthLabel}.</h3>
+					<p>Try another month, or show every place and status.</p>
+					<button
+						type="button"
+						class="btn"
+						onclick={() => {
+							selectedPlace = "All";
+							openOnly = false;
+						}}>Clear filters</button
+					>
+				</div>
+			{/if}
+		</section>
+	{:else}
+		<div class="calendar-layout">
+			<section class="month" aria-label={`${monthLabel} calendar`}>
+				<div class="legend" aria-label="Places">
+					{#each placeLegend as item}
+						<span class="legend__item place--{placeClass(item.place)}"><i></i>{item.label}</span>
+					{/each}
+				</div>
+				<div class="month__weekdays" aria-hidden="true">
+					{#each weekdays as weekday}<span>{weekday}</span>{/each}
+				</div>
+				<!-- Clicking anywhere in a day's box selects it. The number button stays
+				     the keyboard-accessible way to do the same thing. -->
+				<div class="month__days" role="presentation" onclick={selectDayFromBox}>
+					{#each calendarDays.map( (day) => ({ day, dayEvents: eventsOn(day) }) ) as { day, dayEvents }}
+						<div
+							data-date={dateKey(day)}
+							class="day"
+							class:outside={day.getMonth() !== displayedMonth.getMonth()}
+							class:selected={dateKey(day) === dateKey(selectedDay)}
+							class:today={isToday(day)}
+						>
+							<button
+								type="button"
+								class="day__number"
+								aria-label={`${day.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}, ${dayEvents.length} event${dayEvents.length === 1 ? "" : "s"}`}
+								aria-pressed={dateKey(day) === dateKey(selectedDay)}
+								onclick={() => (selectedDateKey = dateKey(day))}
+								><span>{day.getDate()}</span></button
+							>
+							{#each dayEvents.slice(0, 2) as event}
+								<a
+									class="chip place--{placeClass(event.place)}"
+									class:is-muted={eventState(event) !== "open"}
+									href={"/events/view/" + event.id}
+									onclick={saveReturnPosition}
+									title={`${event.name}, ${stateLabel(event).toLowerCase()}`}
+									><span>{event.name}</span><time>{eventTime(event)}</time></a
+								>
+							{/each}
+							{#if dayEvents.length > 2}
+								<button type="button" class="more" onclick={() => (selectedDateKey = dateKey(day))}
+									>+{dayEvents.length - 2} more</button
+								>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</section>
+
+			<aside class="day-panel" aria-live="polite" aria-label="Events on the selected day">
+				<h3>
+					{selectedDay.toLocaleDateString(undefined, {
+						weekday: "long",
+						month: "long",
+						day: "numeric"
+					})}
+				</h3>
+				{#if selectedEvents.length}
+					<ul>
+						{#each selectedEvents as event (event.id)}
+							<li>
+								<a
+									href={"/events/view/" + event.id}
+									onclick={saveReturnPosition}
+									class="place--{placeClass(event.place)}"
+								>
+									<strong>{event.name}</strong>
+									<span>{eventTime(event)}</span>
+									{#if event.location}<span>{event.location}</span>{/if}
+									<span class="day-panel__meta">
+										<span class="badge state--{eventState(event)}">{stateLabel(event)}</span>
+										{event.signed_up.length} of {event.intendedVolunteers} signed up
+									</span>
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{:else}
+					<p class="day-panel__empty">
+						No events this day{openOnly || selectedPlace !== "All" ? " with these filters" : ""}.
+					</p>
+				{/if}
+			</aside>
+		</div>
+	{/if}
+</section>
+
+<style>
+	.planner {
+		--place-in-stuy: #3a55a6;
+		--place-queens: #2b7ea6;
+		--place-manhattan: #2e7d57;
+		--place-brooklyn: #ad4f78;
+		--place-bronx: #b5761c;
+		--place-staten-island: #b0503a;
+		--place-other: #7c8092;
+	}
+	:global(.dark) .planner {
+		--place-in-stuy: #9fb1f3;
+		--place-queens: #7cc4e6;
+		--place-manhattan: #78d3a5;
+		--place-brooklyn: #eb9cc0;
+		--place-bronx: #f2bd6a;
+		--place-staten-island: #f0a08c;
+		--place-other: #aab0c2;
+	}
+	.place--in-stuy {
+		--place: var(--place-in-stuy);
+	}
+	.place--queens {
+		--place: var(--place-queens);
+	}
+	.place--manhattan {
+		--place: var(--place-manhattan);
+	}
+	.place--brooklyn {
+		--place: var(--place-brooklyn);
+	}
+	.place--bronx {
+		--place: var(--place-bronx);
+	}
+	.place--staten-island {
+		--place: var(--place-staten-island);
+	}
+	.place--other {
+		--place: var(--place-other);
+	}
+
+	/* Toolbar */
+	.planner__toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	.month-nav {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.month-nav h2 {
+		min-width: 11ch;
+		font-size: clamp(1.5rem, 2.5vw, var(--text-xl));
+		text-align: center;
+		font-variant-numeric: tabular-nums;
+	}
+	.month-arrow {
+		display: grid;
+		place-items: center;
+		width: 2.5rem;
+		height: 2.5rem;
+		padding: 0;
+		border: 1px solid var(--line);
+		border-radius: 50%;
+		background: var(--surface);
+		color: var(--ink);
+		cursor: pointer;
+		transition:
+			background-color var(--dur-2) var(--ease-out),
+			transform var(--dur-1) var(--ease-out);
+	}
+	.month-arrow:hover {
+		background: var(--wash);
+	}
+	.month-arrow:active {
+		transform: scale(0.94);
+	}
+	.month-arrow svg {
+		width: 1.1rem;
+		height: 1.1rem;
+		fill: none;
+		stroke: currentcolor;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		stroke-width: 2;
+	}
+	.planner__filters {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem 1rem;
+	}
+	.segmented {
+		display: inline-flex;
+		padding: 0.25rem;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-pill);
+		background: var(--surface-sunken);
+	}
+	.segmented button {
+		min-height: 2.25rem;
+		padding: 0.3rem 0.95rem;
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--muted);
+		font: inherit;
+		font-size: var(--text-sm);
+		font-weight: 600;
+		cursor: pointer;
+		transition:
+			background-color var(--dur-2) var(--ease-out),
+			color var(--dur-2) var(--ease-out);
+	}
+	.segmented button.active {
+		background: var(--surface);
+		color: var(--ink);
+		box-shadow:
+			0 1px 2px rgb(22 39 90 / 12%),
+			0 0 0 1px var(--line);
+	}
+	.switch {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
+		min-height: 2.75rem;
+		font-size: var(--text-sm);
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.switch input {
+		position: absolute;
+		width: 1px !important;
+		height: 1px !important;
+		opacity: 0;
+	}
+	.switch__track {
+		position: relative;
+		width: 2.5rem;
+		height: 1.5rem;
+		border-radius: var(--radius-pill);
+		background: var(--line-strong);
+		transition: background-color var(--dur-2) var(--ease-out);
+	}
+	.switch__track::after {
+		position: absolute;
+		top: 0.1875rem;
+		left: 0.1875rem;
+		width: 1.125rem;
+		height: 1.125rem;
+		border-radius: 50%;
+		background: #fff;
+		box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+		content: "";
+		transition: transform var(--dur-3) var(--ease-out);
+	}
+	.switch input:checked + .switch__track {
+		background: var(--action);
+	}
+	.switch input:checked + .switch__track::after {
+		transform: translateX(1rem);
+	}
+	.switch input:focus-visible + .switch__track {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+	.place-filter select {
+		width: auto !important;
+		min-height: 2.5rem !important;
+		border-radius: var(--radius-pill) !important;
+		font-size: var(--text-sm) !important;
+		font-weight: 600 !important;
+	}
+	.planner__summary {
+		margin: 0.75rem 0 1rem;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+
+	/* Month view */
+	.calendar-layout {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 19rem;
+		gap: 1rem;
+		align-items: start;
+	}
+	.month {
+		overflow: hidden;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+	}
+	.month__weekdays,
+	.month__days {
+		display: grid;
+		grid-template-columns: repeat(7, minmax(0, 1fr));
+	}
+	.month__weekdays {
+		border-bottom: 1px solid var(--line);
+	}
+	.month__weekdays span {
+		padding: 0.6rem 0.5rem;
+		color: var(--muted);
+		font-size: var(--text-xs);
+		font-weight: 600;
+	}
+	.day {
+		display: grid;
+		align-content: start;
+		gap: 0.25rem;
+		min-height: 7.25rem;
+		padding: 0.35rem;
+		overflow: hidden;
+		border-right: 1px solid var(--line);
+		border-bottom: 1px solid var(--line);
+		transition: background-color var(--dur-1) ease;
+	}
+	.day:nth-child(7n) {
+		border-right: 0;
+	}
+	.day:nth-last-child(-n + 7) {
+		border-bottom: 0;
+	}
+	.day {
+		cursor: pointer;
+	}
+	.day:hover:not(.selected) {
+		background: color-mix(in srgb, var(--wash) 55%, transparent);
+	}
+	.day.outside {
+		background: var(--surface-sunken);
+	}
+	.day.selected {
+		background: var(--wash);
+	}
+	.day__number {
+		display: grid;
+		place-items: center;
+		width: 1.9rem;
+		height: 1.9rem;
+		min-height: 0;
+		min-width: 0;
+		padding: 0;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		color: var(--ink);
+		font: inherit;
+		font-size: var(--text-sm);
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		cursor: pointer;
+	}
+	.day__number:hover {
+		background: var(--seal-soft);
+	}
+	.day.outside .day__number {
+		color: var(--subtle);
+	}
+	.day.today .day__number {
+		background: var(--flame);
+		color: #2a1a00;
+	}
+	.day.selected:not(.today) .day__number {
+		background: var(--ink);
+		color: var(--paper);
+	}
+	.chip {
+		display: grid;
+		gap: 0.05rem;
+		padding: 0.2rem 0.35rem 0.2rem 0.45rem;
+		overflow: hidden;
+		border-left: 3px solid var(--place);
+		border-radius: 6px;
+		background: color-mix(in srgb, var(--place) 13%, var(--surface));
+		color: var(--ink);
+		font-size: 0.7rem;
+		font-weight: 600;
+		line-height: 1.2;
+		text-decoration: none;
+		transition: background-color var(--dur-1) ease;
+	}
+	.chip:hover {
+		background: color-mix(in srgb, var(--place) 24%, var(--surface));
+	}
+	.chip span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.chip time {
+		color: var(--muted);
+		font-size: 0.65rem;
+		font-weight: 500;
+	}
+	.chip.is-muted {
+		opacity: 0.55;
+	}
+	.more {
+		justify-self: start;
+		min-height: 0;
+		padding: 0.1rem 0.25rem;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--link);
+		font: inherit;
+		font-size: 0.7rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.more:hover {
+		text-decoration: underline;
+	}
+	.legend {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem 1rem;
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid var(--line);
+		color: var(--muted);
+		font-size: var(--text-xs);
+	}
+	.legend__item {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.legend__item i {
+		width: 0.55rem;
+		height: 0.55rem;
+		border-radius: 50%;
+		background: var(--place);
+	}
+
+	/* Day panel */
+	.day-panel {
+		position: sticky;
+		top: 5.5rem;
+		padding: 1.15rem;
+		border-radius: var(--radius-panel);
+		background: var(--surface-sunken);
+	}
+	.day-panel h3 {
+		font-size: var(--text-lg);
+	}
+	.day-panel ul {
+		display: grid;
+		gap: 0.5rem;
+		margin: 0.85rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.day-panel a {
+		display: grid;
+		gap: 0.15rem;
+		padding: 0.75rem 0.85rem;
+		border-left: 3px solid var(--place);
+		border-radius: var(--radius-field);
+		background: var(--surface);
+		color: var(--ink);
+		text-decoration: none;
+		transition: background-color var(--dur-2) var(--ease-out);
+	}
+	.day-panel a:hover {
+		background: var(--wash);
+	}
+	.day-panel a strong {
+		font-weight: 650;
+		line-height: 1.35;
+	}
+	.day-panel a > span {
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+	.day-panel__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.35rem;
+		color: var(--muted);
+		font-size: var(--text-xs) !important;
+	}
+	.day-panel__empty {
+		margin: 0.6rem 0 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
+	}
+
+	.state--open {
+		background: var(--success-soft);
+		color: var(--success);
+	}
+	.state--closed {
+		background: var(--flame-soft);
+		color: var(--flame-text);
+	}
+	.state--complete {
+		background: var(--surface-sunken);
+		color: var(--muted);
+	}
+
+	/* List view */
+	.event-list ul {
+		display: grid;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+		list-style: none;
+	}
+	.event-list li + li {
+		border-top: 1px solid var(--line);
+	}
+	.event-list a {
+		display: grid;
+		grid-template-columns: 3.25rem minmax(0, 1fr) auto;
+		gap: 1rem;
+		align-items: center;
+		padding: 0.85rem 1rem;
+		color: var(--ink);
+		text-decoration: none;
+		transition: background-color var(--dur-2) var(--ease-out);
+	}
+	.event-list a:hover {
+		background: var(--wash);
+	}
+	.event-list a.is-muted .event-list__main {
+		opacity: 0.65;
+	}
+	.event-list time {
+		display: grid;
+		place-items: center;
+		height: 3.25rem;
+		border-radius: var(--radius-field);
+		background: var(--surface-sunken);
+		line-height: 1;
+	}
+	.event-list time span {
+		color: var(--muted);
+		font-size: 0.6875rem;
+		font-weight: 600;
+	}
+	.event-list time b {
+		font-family: var(--font-display);
+		font-size: 1.35rem;
+		font-weight: 600;
+	}
+	.event-list__main {
+		display: grid;
+		gap: 0.15rem;
+		min-width: 0;
+	}
+	.event-list__main strong {
+		overflow: hidden;
+		font-weight: 600;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.event-list__main span {
+		overflow: hidden;
+		color: var(--muted);
+		font-size: var(--text-sm);
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.event-list__meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: end;
+		gap: 0.4rem;
+	}
+	.place-tag {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		color: var(--muted);
+		font-size: var(--text-xs);
+		font-weight: 600;
+	}
+	.place-tag::before {
+		width: 0.5rem;
+		height: 0.5rem;
+		border-radius: 50%;
+		background: var(--place);
+		content: "";
+	}
+	.event-list__count {
+		min-width: 4.5rem;
+		color: var(--muted);
+		font-size: var(--text-xs);
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+
+	@media (max-width: 980px) {
+		.calendar-layout {
+			grid-template-columns: 1fr;
+		}
+		.day-panel {
+			position: static;
+		}
+	}
+	@media (max-width: 640px) {
+		.planner__toolbar {
+			align-items: stretch;
+			flex-direction: column;
+		}
+		.month-nav {
+			justify-content: space-between;
+		}
+		.day {
+			min-height: 4.5rem;
+			padding: 0.2rem;
+		}
+		.chip time {
+			display: none;
+		}
+		.chip {
+			font-size: 0.625rem;
+		}
+		.event-list a {
+			grid-template-columns: 3rem minmax(0, 1fr);
+			gap: 0.75rem;
+		}
+		.event-list__meta {
+			grid-column: 2;
+			justify-content: start;
+		}
+		.event-list__count {
+			min-width: 0;
+			text-align: left;
+		}
+	}
+</style>
