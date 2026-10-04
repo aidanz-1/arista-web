@@ -248,18 +248,16 @@
 				<h2 id="organizer-title">Run this event</h2>
 			</header>
 
-			<div class="organizer__tabs" role="tablist" aria-label="Organizer tools">
+			<div class="organizer__tabs" role="group" aria-label="Organizer tools">
 				<button
 					type="button"
-					role="tab"
-					aria-selected={organizerView === "credit"}
+					aria-pressed={organizerView === "credit"}
 					class:active={organizerView === "credit"}
 					onclick={() => (organizerView = "credit")}>Credit volunteers</button
 				>
 				<button
 					type="button"
-					role="tab"
-					aria-selected={organizerView === "roster"}
+					aria-pressed={organizerView === "roster"}
 					class:active={organizerView === "roster"}
 					onclick={() => (organizerView = "roster")}
 					>Roster <span class="organizer__count">{data.event.signed_up.length}</span></button
@@ -267,7 +265,7 @@
 			</div>
 
 			{#if organizerView === "credit"}
-				<div class="organizer__panel" role="tabpanel">
+				<div class="organizer__panel">
 					<div class="organizer__bulk panel panel--wash">
 						<div>
 							<h3>Credit everyone at once</h3>
@@ -360,7 +358,7 @@
 					{/if}
 				</div>
 			{:else}
-				<div class="organizer__panel" role="tabpanel">
+				<div class="organizer__panel">
 					{#if data.event.expand?.signed_up?.length}
 						<div class="organizer__copy">
 							<button type="button" class="btn btn-sm" onclick={() => copyRoster("names")}

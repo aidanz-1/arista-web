@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from "svelte";
+	import { afterNavigate, replaceState } from "$app/navigation";
+	import { page } from "$app/state";
 	import type { RecievedEvent } from "$lib/db_types";
 
 	type CalendarState = {
@@ -140,7 +142,7 @@
 	function saveReturnPosition() {
 		const url = new URL(window.location.href);
 		applyStateToUrl(url);
-		window.history.replaceState(window.history.state, "", url);
+		if (routerReady) replaceState(url, page.state);
 		window.sessionStorage.setItem(
 			returnPositionKey,
 			JSON.stringify({
@@ -222,12 +224,18 @@
 		return () => window.removeEventListener("resize", setResponsiveView);
 	});
 
+	// SvelteKit's replaceState only works once the router has started.
+	let routerReady = $state(false);
+	afterNavigate(() => {
+		routerReady = true;
+	});
+
 	$effect(() => {
-		if (!mounted || typeof window === "undefined") return;
+		if (!mounted || !routerReady || typeof window === "undefined") return;
 		const url = new URL(window.location.href);
 		applyStateToUrl(url);
 		if (`${url.pathname}${url.search}` !== `${window.location.pathname}${window.location.search}`) {
-			window.history.replaceState(window.history.state, "", url);
+			replaceState(url, page.state);
 		}
 	});
 </script>

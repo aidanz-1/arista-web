@@ -38,6 +38,7 @@ self.addEventListener("fetch", (event) => {
 	const isHashed = url.pathname.startsWith("/_app/immutable/");
 	event.respondWith(
 		caches.match(event.request).then(async (cachedResponse) => {
+			if (cachedResponse && isHashed) return cachedResponse;
 			const refresh = fetch(event.request).then(async (response) => {
 				if (response.ok) {
 					const cache = await caches.open(CACHE_NAME);
@@ -46,7 +47,7 @@ self.addEventListener("fetch", (event) => {
 				return response;
 			});
 			if (cachedResponse) {
-				if (!isHashed) event.waitUntil(refresh.catch(() => undefined));
+				event.waitUntil(refresh.catch(() => undefined));
 				return cachedResponse;
 			}
 			return refresh;

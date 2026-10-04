@@ -64,18 +64,16 @@ export async function createPlannedCredits(
 ): Promise<CreditPart[]> {
 	const parts = await planCredit(pb, userId, credits, choice);
 	for (const part of parts) {
-		await pb
-			.collection("credits")
-			.create(
-				{
-					user: userId,
-					credits: part.credits,
-					type: part.type,
-					manualExplanation,
-					semester: semesterId
-				},
-				{ requestKey: null }
-			);
+		await pb.collection("credits").create(
+			{
+				user: userId,
+				credits: part.credits,
+				type: part.type,
+				manualExplanation,
+				semester: semesterId
+			},
+			{ requestKey: null }
+		);
 	}
 	return parts;
 }

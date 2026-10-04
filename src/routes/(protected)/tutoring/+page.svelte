@@ -604,11 +604,10 @@
 		{/if}
 	</header>
 
-	<div class="tabs" role="tablist" aria-label="Tutoring">
+	<div class="tabs" role="group" aria-label="Tutoring">
 		<button
 			type="button"
-			role="tab"
-			aria-selected={activeTutoringTab === "sessions"}
+			aria-pressed={activeTutoringTab === "sessions"}
 			class:active={activeTutoringTab === "sessions"}
 			onclick={() => (activeTutoringTab = "sessions")}
 			>Your sessions{#if tutoringSessions.length}<span class="tabs__count"
@@ -617,16 +616,14 @@
 		>
 		<button
 			type="button"
-			role="tab"
-			aria-selected={activeTutoringTab === "request"}
+			aria-pressed={activeTutoringTab === "request"}
 			class:active={activeTutoringTab === "request"}
 			onclick={() => (activeTutoringTab = "request")}>Request help</button
 		>
 		{#if $currentUser?.member}
 			<button
 				type="button"
-				role="tab"
-				aria-selected={activeTutoringTab === "queue"}
+				aria-pressed={activeTutoringTab === "queue"}
 				class:active={activeTutoringTab === "queue"}
 				onclick={() => (activeTutoringTab = "queue")}
 				>Open requests{#if openRequestCount}<span class="tabs__count">{openRequestCount}</span

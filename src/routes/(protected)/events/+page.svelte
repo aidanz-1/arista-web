@@ -34,18 +34,16 @@
 	</header>
 
 	{#if canManageEvents}
-		<div class="events__tabs" role="tablist" aria-label="Event views">
+		<div class="events__tabs" role="group" aria-label="Event views">
 			<button
 				type="button"
-				role="tab"
-				aria-selected={activeView === "calendar"}
+				aria-pressed={activeView === "calendar"}
 				class:active={activeView === "calendar"}
 				onclick={() => (activeView = "calendar")}>Calendar</button
 			>
 			<button
 				type="button"
-				role="tab"
-				aria-selected={activeView === "manage"}
+				aria-pressed={activeView === "manage"}
 				class:active={activeView === "manage"}
 				onclick={() => (activeView = "manage")}>Create an event</button
 			>

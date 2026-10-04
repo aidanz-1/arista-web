@@ -37,6 +37,11 @@
 
 	const uid = $props.id();
 	const id = `field-${String(untrack(() => field))}-${uid}`;
+	// The email pattern the form library generates doesn't compile in current
+	// browsers; type="email" already checks the format, and the server validates.
+	const fieldConstraints = $derived(
+		type === "email" ? { ...$constraints, pattern: undefined } : $constraints
+	);
 </script>
 
 <div class="field">
@@ -53,7 +58,7 @@
 			.join(" ") || undefined}
 		bind:value={$value}
 		{placeholder}
-		{...$constraints}
+		{...fieldConstraints}
 		{...rest}
 	/>
 	{#if $errors}
