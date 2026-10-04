@@ -174,8 +174,11 @@
 	}
 	.category__count {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: baseline;
-		gap: 0.4rem;
+		gap: 0.1rem 0.4rem;
+		min-width: 0;
+		overflow-wrap: anywhere;
 		margin: 0;
 		font-variant-numeric: tabular-nums;
 	}
@@ -188,6 +191,7 @@
 	}
 	.category__count span {
 		color: var(--muted);
+		white-space: nowrap;
 	}
 	.category .meter {
 		background: var(--line);

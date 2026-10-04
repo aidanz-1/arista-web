@@ -8,25 +8,31 @@
 
 	let { credits }: Props = $props();
 
+	// What the credit was for: the event or tutoring session when there is one,
+	// otherwise the explanation the officer typed.
 	function creditTitle(credit: ExpandedCredit): string {
+		const event = credit.expand?.event;
+		if (event) return event.name;
+		const request = credit.expand?.session?.expand?.tutoringRequest;
+		if (request) return `Tutoring ${request.class}${request.topic ? `: ${request.topic}` : ""}`;
 		if (credit.manualExplanation) return credit.manualExplanation;
-		if (credit.type === "event") return credit.expand?.event?.name ?? "Event credit";
-		if (credit.type === "tutoring") {
-			const request = credit.expand?.session?.expand?.tutoringRequest;
-			return request ? `${request.topic} for ${request.class}` : "Tutoring session";
-		}
-		return "Manual credit";
+		if (credit.type === "event") return "Event (no longer listed)";
+		if (credit.type === "tutoring") return "Tutoring session";
+		return "Other credit";
 	}
 
-	function creditDetail(credit: ExpandedCredit): string | undefined {
-		if (credit.manualExplanation) return undefined;
-		if (credit.type === "event" && credit.expand?.event?.start_time) {
-			return format(credit.expand.event.start_time, "MMM d, yyyy");
-		}
-		if (credit.type === "tutoring" && credit.expand?.session?.dateCompleted) {
-			return `Completed ${format(credit.expand.session.dateCompleted, "MMM d, yyyy")}`;
-		}
-		return undefined;
+	// An officer's note, shown under the title when the title is the event or session.
+	function creditNote(credit: ExpandedCredit): string | undefined {
+		const hasSource = credit.expand?.event || credit.expand?.session?.expand?.tutoringRequest;
+		return hasSource && credit.manualExplanation ? credit.manualExplanation : undefined;
+	}
+
+	function creditDate(credit: ExpandedCredit): string {
+		const event = credit.expand?.event;
+		if (event?.start_time) return format(event.start_time, "MMM d, yyyy");
+		const completed = credit.expand?.session?.dateCompleted;
+		if (completed) return `Completed ${format(completed, "MMM d, yyyy")}`;
+		return `Credited ${format(credit.created, "MMM d, yyyy")}`;
 	}
 </script>
 
@@ -38,9 +44,10 @@
 			<li>
 				<div>
 					<p class="activity__title">{creditTitle(credit)}</p>
-					{#if creditDetail(credit)}
-						<p class="activity__meta">{creditDetail(credit)}</p>
+					{#if creditNote(credit)}
+						<p class="activity__meta">{creditNote(credit)}</p>
 					{/if}
+					<p class="activity__meta">{creditDate(credit)}</p>
 				</div>
 				<p class="activity__amount">+{credit.credits}</p>
 			</li>

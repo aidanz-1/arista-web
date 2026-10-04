@@ -47,7 +47,12 @@ export const load = (async ({ params, locals }) => {
 	}
 
 	const [credits, strikes, publicProfile] = await Promise.all([
-		locals.pb.collection("credits").getFullList({ filter: `user="${user.id}"`, requestKey: null }),
+		locals.pb.collection("credits").getFullList({
+			filter: `user="${user.id}"`,
+			expand: "event,session,session.tutoringRequest",
+			sort: "-created",
+			requestKey: null
+		}),
 		locals.pb
 			.collection("strikes")
 			.getFullList({ filter: `strikedUser="${user.id}"`, requestKey: null }),
