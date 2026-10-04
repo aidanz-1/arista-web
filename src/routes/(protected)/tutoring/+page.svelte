@@ -1079,6 +1079,24 @@
 	.tabs button.active {
 		color: var(--ink);
 	}
+	/* All three tabs fit on a phone instead of the last one scrolling away. */
+	@media (max-width: 520px) {
+		.tabs {
+			gap: 0;
+			overflow: visible;
+		}
+		.tabs button {
+			flex: 1 1 auto;
+			justify-content: center;
+			gap: 0.3rem;
+			padding: 0.5rem 0.3rem;
+			font-size: var(--text-sm);
+		}
+		.tabs button.active::after {
+			right: 0.3rem !important;
+			left: 0.3rem !important;
+		}
+	}
 	.tabs button.active::after {
 		position: absolute;
 		right: 0.9rem;

@@ -152,6 +152,12 @@
 		.site-footer__inner {
 			grid-template-columns: 1fr 1fr;
 		}
+		.site-footer__explore-links {
+			grid-template-columns: 1fr;
+		}
+		.site-footer nav a {
+			white-space: nowrap;
+		}
 		.site-footer__identity {
 			grid-column: 1 / -1;
 		}

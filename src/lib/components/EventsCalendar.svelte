@@ -287,7 +287,7 @@
 		</div>
 	</div>
 
-	<p class="planner__summary">{summary}</p>
+	{#if monthEvents.length}<p class="planner__summary">{summary}</p>{/if}
 
 	{#if listView}
 		<section class="event-list" aria-label={`${monthLabel} events`}>
@@ -326,16 +326,21 @@
 				</ul>
 			{:else}
 				<div class="empty-state">
-					<h3>Nothing matches these filters in {monthLabel}.</h3>
-					<p>Try another month, or show every place and status.</p>
-					<button
-						type="button"
-						class="btn"
-						onclick={() => {
-							selectedPlace = "All";
-							openOnly = false;
-						}}>Clear filters</button
-					>
+					{#if selectedPlace !== "All" || openOnly}
+						<h3>Nothing matches these filters in {monthLabel}.</h3>
+						<p>Try another month, or show every place and status.</p>
+						<button
+							type="button"
+							class="btn"
+							onclick={() => {
+								selectedPlace = "All";
+								openOnly = false;
+							}}>Clear filters</button
+						>
+					{:else}
+						<h3>No events in {monthLabel} yet.</h3>
+						<p>New events show up here as soon as the events committee posts them.</p>
+					{/if}
 				</div>
 			{/if}
 		</section>

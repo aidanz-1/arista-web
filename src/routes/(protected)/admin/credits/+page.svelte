@@ -88,6 +88,7 @@
 					<strong>{label}</strong>
 					<label>
 						<span class="sr-only">{label} event credits</span>
+						<span class="matrix__mobile-label" aria-hidden="true">Events</span>
 						<input
 							name="eventCredits"
 							type="number"
@@ -99,6 +100,7 @@
 					</label>
 					<label>
 						<span class="sr-only">{label} tutoring credits</span>
+						<span class="matrix__mobile-label" aria-hidden="true">Tutoring</span>
 						<input
 							name="tutoringCredits"
 							type="number"
@@ -110,6 +112,7 @@
 					</label>
 					<label>
 						<span class="sr-only">{label} other credits</span>
+						<span class="matrix__mobile-label" aria-hidden="true">Other</span>
 						<input
 							name="otherCredits"
 							type="number"
@@ -223,6 +226,9 @@
 	.matrix__row strong {
 		font-weight: 600;
 	}
+	.matrix__mobile-label {
+		display: none;
+	}
 	.matrix__row input {
 		min-height: 2.5rem !important;
 		text-align: right;
@@ -260,15 +266,15 @@
 		.matrix__row strong {
 			grid-column: 1 / -1;
 		}
-		.matrix__row label > .sr-only {
-			position: static;
-			width: auto;
-			height: auto;
-			margin: 0;
-			clip: auto;
+		.matrix__row label {
+			display: grid;
+			gap: 0.25rem;
+		}
+		.matrix__mobile-label {
+			display: block !important;
 			color: var(--muted);
 			font-size: var(--text-xs);
-			white-space: normal;
+			font-weight: 600;
 		}
 		.matrix__row > span:last-child {
 			grid-column: 1 / -1;

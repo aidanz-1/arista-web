@@ -539,6 +539,9 @@
 		border-radius: var(--radius-panel);
 		background: color-mix(in srgb, var(--flame) 12%, var(--surface));
 	}
+	:global(.dark) .tutee__contact {
+		background: var(--surface);
+	}
 	.tutee__contact h2 {
 		font-size: var(--text-lg);
 	}

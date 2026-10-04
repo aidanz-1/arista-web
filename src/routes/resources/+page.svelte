@@ -227,6 +227,20 @@
 	.tabs a:hover {
 		color: var(--ink);
 	}
+	/* All three sections fit on a phone instead of the last one scrolling away. */
+	@media (max-width: 520px) {
+		.tabs {
+			display: flex;
+			gap: 0;
+			overflow: visible;
+		}
+		.tabs a {
+			flex: 1 1 0;
+			justify-content: center;
+			padding: 0.4rem 0.45rem;
+			font-size: var(--text-sm);
+		}
+	}
 	.tabs a.active {
 		background: var(--surface);
 		color: var(--ink);

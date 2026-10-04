@@ -692,6 +692,44 @@
 		min-height: 2.25rem !important;
 		padding: 0.35rem 0.55rem !important;
 	}
+	/* On phones, the volunteer tables stack: name, email, then the credit form,
+	   instead of three columns that run off the screen. */
+	@media (max-width: 640px) {
+		.organizer__panel .table thead {
+			display: none;
+		}
+		.organizer__panel .table,
+		.organizer__panel .table tbody {
+			display: block;
+		}
+		.organizer__panel .table tr {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: 0.2rem 0.6rem;
+			padding: 0.75rem 1rem;
+			border-bottom: 1px solid var(--line);
+		}
+		.organizer__panel .table tr:last-child {
+			border-bottom: 0;
+		}
+		.organizer__panel .table td {
+			grid-column: 1 / -1;
+			padding: 0;
+			border: 0;
+			overflow-wrap: anywhere;
+		}
+		.organizer__panel .table td.organizer__index {
+			grid-column: 1;
+			grid-row: 1;
+			width: auto;
+		}
+		.organizer__panel .table td.organizer__index + td {
+			grid-column: 2;
+		}
+		.organizer__credit {
+			margin-top: 0.35rem;
+		}
+	}
 	.organizer__edit summary {
 		display: inline-flex;
 		align-items: center;

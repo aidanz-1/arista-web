@@ -336,6 +336,10 @@
 		font-size: var(--text-base);
 		font-weight: 600;
 	}
+	:global(.dark) .question__num {
+		background: var(--flame);
+		color: #1d1a12;
+	}
 	.question__hint {
 		margin: 0 0 0.25rem 2.85rem;
 		color: var(--muted);

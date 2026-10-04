@@ -60,4 +60,34 @@
 		background: var(--flame);
 		content: "";
 	}
+	/* On phones the five tabs wrap into pill rows instead of a strip that hides
+	   the last ones off-screen. */
+	@media (max-width: 640px) {
+		.admin-subnav {
+			flex-wrap: wrap;
+			gap: 0.4rem;
+			padding-bottom: 1rem;
+			overflow: visible;
+		}
+		.admin-subnav a {
+			min-height: 2.5rem;
+			padding: 0.4rem 0.85rem;
+			border: 1px solid var(--line);
+			border-radius: var(--radius-pill);
+			font-size: var(--text-sm);
+		}
+		.admin-subnav a.active {
+			border-color: var(--seal);
+			background: var(--seal);
+			color: #fff;
+		}
+		.admin-subnav a.active::after {
+			display: none;
+		}
+		:global(.dark) .admin-subnav a.active {
+			border-color: var(--flame);
+			background: var(--flame);
+			color: #1d1a12;
+		}
+	}
 </style>
