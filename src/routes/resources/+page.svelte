@@ -24,12 +24,39 @@
 	// Once the visible embed loads, mount the other sections too (hidden) so
 	// switching tabs is instant and nothing reloads.
 	let warmEmbeds = $state(false);
-	let slidesFrame: HTMLIFrameElement | undefined = $state();
-	let videoFrame: HTMLIFrameElement | undefined = $state();
+	let slidesWrap: HTMLDivElement | undefined = $state();
+	let videoWrap: HTMLDivElement | undefined = $state();
+	// iPhones can't put an iframe into real full screen, so fall back to a
+	// fixed overlay that fills the viewport.
+	let expanded: "slides" | "video" | null = $state(null);
 
-	function goFullscreen(frame: HTMLIFrameElement | undefined) {
-		void frame?.requestFullscreen?.().catch(() => window.open(frame.src, "_blank", "noopener"));
+	type FullscreenElement = HTMLElement & { webkitRequestFullscreen?: () => void };
+
+	function goFullscreen(wrap: HTMLDivElement | undefined, key: "slides" | "video") {
+		const el = wrap as FullscreenElement | undefined;
+		if (!el) return;
+		if (el.requestFullscreen && document.fullscreenEnabled) {
+			el.requestFullscreen().catch(() => (expanded = key));
+		} else if (el.webkitRequestFullscreen) {
+			el.webkitRequestFullscreen();
+		} else {
+			expanded = key;
+		}
 	}
+
+	$effect(() => {
+		if (!expanded) return;
+		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "Escape") expanded = null;
+		};
+		window.addEventListener("keydown", onKey);
+		// Lift the page's scroll area above the navbar while the overlay is open.
+		document.documentElement.classList.add("embed-open");
+		return () => {
+			window.removeEventListener("keydown", onKey);
+			document.documentElement.classList.remove("embed-open");
+		};
+	});
 
 	function warmInactiveEmbeds() {
 		warmEmbeds = true;
@@ -139,7 +166,11 @@
 								<h3>Orientation slides</h3>
 							</div>
 							<div class="freshman__actions">
-								<button type="button" class="btn btn-sm" onclick={() => goFullscreen(slidesFrame)}>
+								<button
+									type="button"
+									class="btn btn-sm"
+									onclick={() => goFullscreen(slidesWrap, "slides")}
+								>
 									<svg viewBox="0 0 24 24" aria-hidden="true"
 										><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg
 									>
@@ -150,9 +181,17 @@
 								>
 							</div>
 						</div>
-						<div class="embed embed--wide">
+						<div
+							class="embed embed--wide"
+							class:embed--expanded={expanded === "slides"}
+							bind:this={slidesWrap}
+						>
+							{#if expanded === "slides"}
+								<button type="button" class="embed__close" onclick={() => (expanded = null)}
+									>Close</button
+								>
+							{/if}
 							<iframe
-								bind:this={slidesFrame}
 								src="https://docs.google.com/presentation/d/175Cbn57TR8R3gi4jjRrRfUrOjPmYV83ZF9zkv4qLWAY/embed?start=false&loop=false&delayms=3000"
 								title="Freshman orientation slides"
 								allow="fullscreen"
@@ -168,7 +207,11 @@
 								<p>A short video on keeping a school inbox under control.</p>
 							</div>
 							<div class="freshman__actions">
-								<button type="button" class="btn btn-sm" onclick={() => goFullscreen(videoFrame)}>
+								<button
+									type="button"
+									class="btn btn-sm"
+									onclick={() => goFullscreen(videoWrap, "video")}
+								>
 									<svg viewBox="0 0 24 24" aria-hidden="true"
 										><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg
 									>
@@ -179,9 +222,17 @@
 								>
 							</div>
 						</div>
-						<div class="embed embed--wide">
+						<div
+							class="embed embed--wide"
+							class:embed--expanded={expanded === "video"}
+							bind:this={videoWrap}
+						>
+							{#if expanded === "video"}
+								<button type="button" class="embed__close" onclick={() => (expanded = null)}
+									>Close</button
+								>
+							{/if}
 							<iframe
-								bind:this={videoFrame}
 								src="https://drive.google.com/file/d/1VLqBZd2xlR37_qT4ZtN8xzGCrJArUhmF/preview"
 								title="Organizing your email video"
 								allow="autoplay; fullscreen"
@@ -302,6 +353,39 @@
 		aspect-ratio: 16 / 9;
 		margin-top: 0.85rem;
 		background: #000;
+	}
+	.embed:fullscreen {
+		border: 0;
+		border-radius: 0;
+		aspect-ratio: auto;
+	}
+	.embed--expanded {
+		position: fixed;
+		inset: 0;
+		z-index: 200;
+		height: 100dvh;
+		margin: 0;
+		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+			env(safe-area-inset-left);
+		border: 0;
+		border-radius: 0;
+		aspect-ratio: auto;
+	}
+	:global(html.embed-open .app-shell__scroll) {
+		position: relative;
+		z-index: 60;
+	}
+	.embed__close {
+		position: absolute;
+		top: calc(env(safe-area-inset-top) + 0.75rem);
+		left: calc(env(safe-area-inset-left) + 0.75rem);
+		z-index: 1;
+		padding: 0.5rem 1rem;
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: rgb(0 0 0 / 70%);
+		color: #fff;
+		font-weight: 600;
 	}
 	.member-note {
 		display: flex;
