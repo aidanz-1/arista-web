@@ -38,12 +38,19 @@
 	let narrow: boolean | null = $state(null);
 
 	onMount(() => {
-		narrow = window.matchMedia("(max-width: 640px)").matches;
+		// Follow the window across the phone breakpoint, not just its width on load.
+		const phone = window.matchMedia("(max-width: 640px)");
+		narrow = phone.matches;
+		const onWidthChange = (event: MediaQueryListEvent) => (narrow = event.matches);
+		phone.addEventListener("change", onWidthChange);
 		const onFullscreenChange = () => {
 			if (!document.fullscreenElement) expanded = null;
 		};
 		document.addEventListener("fullscreenchange", onFullscreenChange);
-		return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+		return () => {
+			document.removeEventListener("fullscreenchange", onFullscreenChange);
+			phone.removeEventListener("change", onWidthChange);
+		};
 	});
 
 	function goFullscreen(wrap: HTMLDivElement | undefined, key: Expandable) {
