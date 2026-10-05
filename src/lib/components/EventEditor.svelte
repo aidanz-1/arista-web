@@ -55,12 +55,19 @@
 		</select>
 	</div>
 	<div class="editor__wide">
-		<InputField
-			form={formObj}
-			field="description"
-			label="What will volunteers do?"
-			placeholder="What the work is, what to bring, and who to find when you arrive."
-		/>
+		<div class="field">
+			<label for="event-description">What will volunteers do?</label>
+			<textarea
+				id="event-description"
+				class="input editor__description"
+				name="description"
+				rows="4"
+				placeholder="What the work is, what to bring, and who to find when you arrive."
+				aria-invalid={$errors.description ? "true" : undefined}
+				bind:value={$form.description}
+				{...$constraints.description}></textarea>
+			{#if $errors.description}<span class="field-error">{$errors.description}</span>{/if}
+		</div>
 	</div>
 	<InputField
 		form={formObj}
@@ -111,6 +118,21 @@
 </div>
 
 <style>
+	.field {
+		display: grid;
+		gap: 0.4rem;
+	}
+	.field label {
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	/* Grows with the text where supported; otherwise drag to resize. */
+	.editor__description {
+		min-height: 7rem;
+		resize: vertical;
+		field-sizing: content;
+		line-height: 1.55;
+	}
 	.editor {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));

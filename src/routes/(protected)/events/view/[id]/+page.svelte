@@ -23,6 +23,28 @@
 
 	let { data }: Props = $props();
 	let isCreditingAll = $state(false);
+	// Turn pasted links into short, clickable ones ("themmrf.org/…") so a long
+	// tracking URL doesn't stretch the page.
+	const descriptionParts = $derived(
+		(data.event.description ?? "").split(/(https?:\/\/[^\s<>"]+)/g).map((text, index) => {
+			if (index % 2 === 0) return { text };
+			const url = text.replace(/[).,!?;:]+$/, "");
+			const trailing = text.slice(url.length);
+			let label = url;
+			try {
+				const parsed = new URL(url);
+				const rest = `${parsed.pathname}${parsed.search}`.replace(/^\/$/, "");
+				label =
+					parsed.hostname.replace(/^www\./, "") +
+					(rest ? (rest.length > 24 ? `${rest.slice(0, 24)}…` : rest) : "");
+			} catch {
+				return { text };
+			}
+			return { url, label, trailing };
+		})
+	);
+	const ownerId = $derived(data.event.event_owner);
+
 	let organizerView = $state<"credit" | "roster">("credit");
 	let rosterCopyMessage = $state("");
 	let rosterCopyTimer: ReturnType<typeof setTimeout> | undefined;
@@ -167,7 +189,8 @@
 			</div>
 			<h1>{data.event.name}</h1>
 			{#if data.event.description}
-				<p class="event__description">{data.event.description}</p>
+				<!-- prettier-ignore -->
+				<p class="event__description">{#each descriptionParts as part}{#if part.url}<a class="text-link" href={part.url} target="_blank" rel="noreferrer noopener">{part.label}</a>{part.trailing}{:else}{part.text}{/if}{/each}</p>
 			{/if}
 
 			<dl class="event__facts">
@@ -317,7 +340,9 @@
 										<tr>
 											<td
 												><strong>{signed_up_user.name}</strong
-												>{#if signed_up_user.preferredName}<span class="muted">
+												>{#if signed_up_user.id === ownerId}<span class="badge badge--organizer"
+														>Organizer</span
+													>{/if}{#if signed_up_user.preferredName}<span class="muted">
 														({signed_up_user.preferredName})</span
 													>{/if}</td
 											>
@@ -388,9 +413,9 @@
 										<tr>
 											<td class="organizer__index muted">{index + 1}</td>
 											<td
-												><strong>{volunteer.name}</strong>{#if volunteer.preferredName}<span
-														class="muted"
-													>
+												><strong>{volunteer.name}</strong>{#if volunteer.id === ownerId}<span
+														class="badge badge--organizer">Organizer</span
+													>{/if}{#if volunteer.preferredName}<span class="muted">
 														({volunteer.preferredName})</span
 													>{/if}</td
 											>
@@ -488,7 +513,14 @@
 		font-weight: 560;
 		line-height: 1.02;
 	}
+	.badge--organizer {
+		margin-left: 0.4rem;
+		background: var(--flame-soft);
+		color: var(--flame-text);
+		vertical-align: 0.1em;
+	}
 	.event__description {
+		overflow-wrap: anywhere;
 		max-width: 44rem;
 		margin: 1.1rem 0 0;
 		color: var(--muted);
