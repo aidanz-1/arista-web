@@ -64,9 +64,9 @@
 					>
 				</thead>
 				<tbody>
-					<tr><td>2027</td><td>22</td><td>6</td><td>6</td></tr>
-					<tr><td>2028</td><td>18</td><td>5</td><td>6</td></tr>
-					<tr><td>2029</td><td>22</td><td>5</td><td>6</td></tr>
+					<tr><td>2027 (seniors)</td><td>22</td><td>6</td><td>6</td></tr>
+					<tr><td>2028 (juniors)</td><td>25</td><td>6</td><td>6</td></tr>
+					<tr><td>2029 (sophomores)</td><td>25</td><td>6</td><td>6</td></tr>
 				</tbody>
 			</table>
 			<p>
