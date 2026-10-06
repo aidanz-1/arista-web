@@ -55,14 +55,6 @@
 							<a class="anchor" href="/studyguides">stuyarista.org/studyguides</a>.
 						</li>
 						<li>
-							<span class="font-bold underline">AIS:</span> ARISTA members also assist various
-							teacher-led AIS sessions, coordinated by Dr. Haber. Find the AIS schedule
-							<a
-								class="anchor"
-								href="https://stuy.enschool.org/apps/pages/index.jsp?uREC_ID=507777&type=d">here</a
-							>.
-						</li>
-						<li>
 							<span class="font-bold underline">Long-term Partnerships:</span> We have established
 							long-term partnerships with several organizations within Stuyvesant such as with the
 							<a href="http://wc.stuy.edu" class="anchor">Writing Center</a>
@@ -126,14 +118,16 @@
 		{#snippet content()}
 			<section class="w-full text-token space-y-4">
 				<p>
-					Applications to join ARISTA open every spring, typically around February. Freshmen,
-					sophomores, and junior Stuyvesant students with a 92 overall GPA (no exceptions will be
-					made, not even if you are a tenth off) are eligible to apply.
+					Applications to join ARISTA open every spring. Freshmen, sophomores, and junior Stuyvesant
+					students with a 92 overall GPA (no exceptions will be made, not even if you are a tenth
+					off) are eligible to apply.
 				</p>
 				<p>
-					Our application consists of two rounds: if you pass our written application
-					(apply.stuyarista.org) which consists of an extracurricular section and a few essays, you
-					will be called for an interview with the executive council.
+					Our application consists of two rounds: if you pass our written application (<a
+						class="anchor"
+						href="/apply">stuyarista.org/apply</a
+					>) which consists of an extracurricular section and a few essays, you will be called for
+					an interview with the executive council.
 				</p>
 				<p>
 					Although our application process is intense and selective, we encourage all eligible
@@ -163,9 +157,10 @@
 		{/snippet}
 		{#snippet content()}
 			<p>
-				Please email <a href="mailto:stuyaristanycweb@gmail.com" class="anchor"
-					>stuyaristanycweb@gmail.com</a
-				> for assistance.
+				Use <a class="anchor" href="/forgot-password">Forgot password</a> on the sign-in page. We'll
+				email you a link to choose a new one. If the email doesn't arrive, check your spam folder,
+				then email
+				<a href="mailto:stuyaristanycweb@gmail.com" class="anchor">stuyaristanycweb@gmail.com</a>.
 			</p>
 		{/snippet}
 	</AccordionItem>
@@ -177,26 +172,26 @@
 			<p>For any inquiries not addressed here, please refer to the following contacts:</p>
 			<ul class="mt-1 list-disc list-inside [&_ul]:list-[revert]">
 				<li>
-					stuyaristanyc@gmail.com<br />Joanne Huang, President<br />This is the main contact for
+					stuyaristanyc@gmail.com<br />Aidan Zeleniy, President<br />This is the main contact for
 					anything ARISTA-related that doesn’t fit into the other categories. If you’re not sure who
 					to email, start here.
 				</li>
 				<li>
-					stuyaristanycops@gmail.com<br />Veronika Gulko, Vice President of Operations<br />For
+					stuyaristanycops@gmail.com<br />Emma Musyuk, Vice President of Operations<br />For
 					questions about tutoring logistics, credit tracking, study guides, academic resources,
 					PISTE, or anything related to how ARISTA runs behind the scenes. If you’re an ARISTA
 					member with concerns about your credits, this is the place to ask.
 				</li>
 				<li>
-					stuyaristanycevents@gmail.com<br />Elizabeth Chao, Vice President of Events<br />If you
-					have questions about an ARISTA event, whether it's logistics, sign-ups, or a credit
-					discrepancy, email here. If your question is about a specific event, it helps to reach out
-					to the event leader directly.
+					stuyaristanycevents@gmail.com<br />Eric Lam, Vice President of Events &amp; Service<br
+					/>If you have questions about an ARISTA event, whether it's logistics, sign-ups, or a
+					credit discrepancy, email here. If your question is about a specific event, it helps to
+					reach out to the event leader directly.
 				</li>
 				<li>
-					stuyaristanycweb@gmail.com<br />Rohan Sen, Vice President of Web Development<br />For any
-					problems with the ARISTA website, suggestions for improvements, or updates that need to be
-					made. If something looks off or isn't working, let us know.
+					stuyaristanycweb@gmail.com<br />Mekot Sarder, Vice President of Web Development<br />For
+					any problems with the ARISTA website, suggestions for improvements, or updates that need
+					to be made. If something looks off or isn't working, let us know.
 				</li>
 			</ul>
 		{/snippet}
@@ -226,22 +221,22 @@
 					the same topic multiple times will not increase the chance of it getting selected.
 				</li>
 				<li>
-					You will see your request under “Tutoring Requests.” Please check back every so often to
-					see if someone has selected your request, which you will then see under “Active Sessions”.
-					Your tutor should reach out to you soon after selecting your request; if they do not,
-					please email Veronika at <a href="mailto:stuyaristanycops@gmail.com" class="anchor"
+					You will see your request under “Your open requests” on the Request help tab. Once a tutor
+					picks it, it moves to “Your sessions”, where you can message them. Your tutor should reach
+					out to you soon after selecting your request; if they do not, please email the Operations
+					team at <a href="mailto:stuyaristanycops@gmail.com" class="anchor"
 						>stuyaristanycops@gmail.com</a
 					>.
 				</li>
 				<li>
-					You will soon be automatically emailed once someone pairs with you, but this feature is
-					still under testing as this is a new website.
+					We'll email you when a tutor picks your request, and if a message from them goes unread
+					for a few hours.
 				</li>
 				<li>
-					After your session, please “Finish Tutoring Session” on the website under “Active
-					Sessions” by inputting the duration of the session, rounded to the nearest tenth of an
-					hour. Keep an eye out for a new feature dropping soon where you will be able to rate your
-					tutor! This helps us improve as an organization, so we appreciate your feedback.
+					After your session, open “Your sessions” and use “Log hours” to enter how long you met,
+					rounded to the nearest tenth of an hour. Keep an eye out for a new feature dropping soon
+					where you will be able to rate your tutor! This helps us improve as an organization, so we
+					appreciate your feedback.
 				</li>
 				<li>
 					If you found the tutor to be extremely engaging and helpful, talk to them and see if they
@@ -344,10 +339,10 @@
 				tutored for.
 			</p>
 			<p>
-				If you are looking for a recurring tutor, email Veronika at <a
+				If you are looking for a recurring tutor, email the Operations team at <a
 					href="mailto:stuyaristanycops@gmail.com"
 					class="anchor">stuyaristanycops@gmail.com</a
-				> and she will see if she can pair you with someone long term.
+				> and they will see if they can pair you with someone long term.
 			</p>
 		{/snippet}
 	</AccordionItem>
@@ -373,10 +368,10 @@
 			<ol class="list-decimal ml-5 space-y-2">
 				<li>Go to <a class="anchor" href="/tutoring">stuyarista.org/tutoring</a>.</li>
 				<li>
-					Under “Active Sessions”, input the amount of time you met with your tutor to the nearest
+					Under “Your sessions”, enter the amount of time you met with your tutor to the nearest
 					tenth of an hour.
 				</li>
-				<li>Click “Finish Tutoring Session”.</li>
+				<li>Click “Log hours”.</li>
 			</ol>
 		{/snippet}
 	</AccordionItem>
@@ -434,14 +429,10 @@
 		{/snippet}
 		{#snippet content()}
 			<p>
-				If the session has not been selected, please email Veronika at <a
-					href="mailto:stuyaristanycops@gmail.com"
-					class="anchor">stuyaristanycops@gmail.com</a
-				>
-				and she will delete the request for you. If someone has selected your request, please email the
-				tutor and let them know you no longer need help (cc Veronika at
-				<a href="mailto:stuyaristanycops@gmail.com" class="anchor">stuyaristanycops@gmail.com</a>)
-				and complete the session by inputting 0 as the duration of your session.
+				If no one has picked your request yet, open the Request help tab on the
+				<a class="anchor" href="/tutoring">tutoring page</a> and click “Withdraw” next to it under “Your
+				open requests”. If a tutor already picked it, message them on the session to let them know you
+				no longer need help, and ask them to cancel the session.
 			</p>
 		{/snippet}
 	</AccordionItem>

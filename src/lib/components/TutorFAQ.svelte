@@ -54,7 +54,24 @@
 				ARISTA's credit requirements differ based on grade and committee affiliation. Credits can
 				change yearly based on member breakdown, tutoring request history, and other factors; the
 				Executive Committee has the discretion to change requirements and will inform of changes
-				with enough notice. Here are the requirements for the 2026-2027 school year:
+				with enough notice. Here are the Fall 2026 requirements for general members:
+			</p>
+			<table class="faq-table">
+				<thead>
+					<tr
+						><th scope="col">Class of</th><th scope="col">Events</th><th scope="col">Tutoring</th
+						><th scope="col">Other</th></tr
+					>
+				</thead>
+				<tbody>
+					<tr><td>2027</td><td>22</td><td>6</td><td>6</td></tr>
+					<tr><td>2028</td><td>18</td><td>5</td><td>6</td></tr>
+					<tr><td>2029</td><td>22</td><td>5</td><td>6</td></tr>
+				</tbody>
+			</table>
+			<p>
+				Committee members have different requirements. Your home page always shows your exact
+				requirements for this semester.
 			</p>
 		{/snippet}
 	</AccordionItem>
@@ -121,26 +138,26 @@
 			<p>For any inquiries not addressed here, please refer to the following contacts:</p>
 			<ul class="mt-1 list-disc list-inside [&_ul]:list-[revert]">
 				<li>
-					stuyaristanyc@gmail.com<br />Joanne Huang, President<br />This is the main contact for
+					stuyaristanyc@gmail.com<br />Aidan Zeleniy, President<br />This is the main contact for
 					anything ARISTA-related that doesn’t fit into the other categories. If you’re not sure who
 					to email, start here.
 				</li>
 				<li>
-					stuyaristanycops@gmail.com<br />Veronika Gulko, Vice President of Operations<br />For
+					stuyaristanycops@gmail.com<br />Emma Musyuk, Vice President of Operations<br />For
 					questions about tutoring logistics, credit tracking, study guides, academic resources,
 					PISTE, or anything related to how ARISTA runs behind the scenes. If you’re an ARISTA
 					member with concerns about your credits, this is the place to ask.
 				</li>
 				<li>
-					stuyaristanycevents@gmail.com<br />Elizabeth Chao, Vice President of Events<br />If you
-					have questions about an ARISTA event, whether it's logistics, sign-ups, or a credit
-					discrepancy, email here. If your question is about a specific event, it helps to reach out
-					to the event leader directly.
+					stuyaristanycevents@gmail.com<br />Eric Lam, Vice President of Events &amp; Service<br
+					/>If you have questions about an ARISTA event, whether it's logistics, sign-ups, or a
+					credit discrepancy, email here. If your question is about a specific event, it helps to
+					reach out to the event leader directly.
 				</li>
 				<li>
-					stuyaristanycweb@gmail.com<br />Rohan Sen, Vice President of Web Development<br />For any
-					problems with the ARISTA website, suggestions for improvements, or updates that need to be
-					made. If something looks off or isn't working, let us know.
+					stuyaristanycweb@gmail.com<br />Mekot Sarder, Vice President of Web Development<br />For
+					any problems with the ARISTA website, suggestions for improvements, or updates that need
+					to be made. If something looks off or isn't working, let us know.
 				</li>
 			</ul>
 		{/snippet}
@@ -187,11 +204,11 @@
 		{/snippet}
 		{#snippet content()}
 			<p>
-				Stay tuned for an in-depth tutoring tips and tricks guide being released soon! In general,
-				be ready to assist them with past assignments or exams. Evaluate what your tutee needs help
-				with, the two general categories falling into content or practice. They typically will need
-				tutoring for a test, but sometimes they just want to know how to study. Remember, your
-				tutoring performance will be evaluated!
+				Read the <a class="anchor" href="/tutoring/guide">ARISTA tutoring guide</a> for tips. In general,
+				be ready to assist them with past assignments or exams. Evaluate what your tutee needs help with,
+				the two general categories falling into content or practice. They typically will need tutoring
+				for a test, but sometimes they just want to know how to study. Remember, your tutoring performance
+				will be evaluated!
 			</p>
 			<p>
 				To prepare for content review, use your old notes, tests, relevant materials, Google
@@ -257,8 +274,10 @@
 		{/snippet}
 		{#snippet content()}
 			<p>
-				If you’ve claimed a tutoring request by mistake, or if the request is no longer needed,
-				please contact stuyaristanycops@gmail.com for assistance.
+				Open the session under “Your sessions” on the <a class="anchor" href="/tutoring"
+					>tutoring page</a
+				> and click “Cancel session”. The request goes back into the queue for someone else. If the tutee
+				no longer needs help at all, let us know at stuyaristanycops@gmail.com so we can remove the request.
 			</p>
 		{/snippet}
 	</AccordionItem>
@@ -403,3 +422,24 @@
 		{/snippet}
 	</AccordionItem>
 </Accordion>
+
+<style>
+	.faq-table {
+		width: 100%;
+		max-width: 26rem;
+		margin: 0.75rem 0;
+		border-collapse: collapse;
+		font-variant-numeric: tabular-nums;
+	}
+	.faq-table th,
+	.faq-table td {
+		padding: 0.45rem 0.75rem 0.45rem 0;
+		border-bottom: 1px solid var(--line);
+		text-align: left;
+	}
+	.faq-table th {
+		color: var(--muted);
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+</style>
