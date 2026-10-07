@@ -22,6 +22,20 @@
 		const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
 		return localDate.toISOString().slice(0, 16);
 	}
+
+	// The picker gives a wall-clock time with no zone. Convert it to an exact
+	// instant here, in the member's browser, so the server (which runs in UTC)
+	// doesn't read 9:30 AM New York time as 9:30 AM UTC.
+	function setTime(field: "start_time" | "end_time", value: string) {
+		const date = new Date(value);
+		if (!Number.isNaN(date.getTime())) $form[field] = date;
+	}
+
+	function toIsoValue(value: Date | string | null | undefined) {
+		if (!value) return "";
+		const date = value instanceof Date ? value : new Date(value);
+		return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+	}
 </script>
 
 <ErrorComponent errors={$errors} />
@@ -78,22 +92,24 @@
 	/>
 	<InputField form={formObj} field="multiplier" label="Credit multiplier" inputmode="numeric" />
 	<div class="editor__field">
+		<input type="hidden" name="start_time" value={toIsoValue($form.start_time)} />
 		<label for="start_time">Starts</label>
 		<input
 			id="start_time"
-			name="start_time"
 			type="datetime-local"
 			value={toDateTimeLocalValue($form.start_time)}
+			oninput={(e) => setTime("start_time", e.currentTarget.value)}
 			max="2029-01-01T00:00"
 		/>
 	</div>
 	<div class="editor__field">
+		<input type="hidden" name="end_time" value={toIsoValue($form.end_time)} />
 		<label for="end_time">Ends</label>
 		<input
 			id="end_time"
-			name="end_time"
 			type="datetime-local"
 			value={toDateTimeLocalValue($form.end_time)}
+			oninput={(e) => setTime("end_time", e.currentTarget.value)}
 			max="2029-01-01T00:00"
 			aria-invalid={$errors.end_time ? "true" : undefined}
 		/>
