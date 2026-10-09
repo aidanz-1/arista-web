@@ -28,11 +28,29 @@
 			{/each}
 		</ul>
 	</section>
+{:else}
+	<section class="strikes strikes--clear panel" aria-labelledby="strikes-title">
+		<h2 id="strikes-title" class="section-title">Strikes</h2>
+		<p>No strikes on your record.</p>
+	</section>
 {/if}
 
 <style>
 	.strikes {
 		border-color: color-mix(in srgb, var(--flame) 45%, var(--line));
+	}
+	.strikes--clear {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.5rem 1rem;
+		border-color: var(--line);
+	}
+	.strikes--clear p {
+		margin: 0;
+		color: var(--muted);
+		font-size: var(--text-sm);
 	}
 	.strikes__head {
 		display: flex;
