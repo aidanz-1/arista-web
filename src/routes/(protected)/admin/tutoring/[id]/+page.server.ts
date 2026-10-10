@@ -30,7 +30,10 @@ export const load = (async ({ locals, params }) => {
 
 	const [people, messages, credits] = await Promise.all([
 		locals.pb.collection("publicUsers").getFullList({
-			filter: `id="${session.tutor}" || id="${session.tutee}"`,
+			filter: [session.tutor, session.tutee, session.flaggedBy]
+				.filter(Boolean)
+				.map((id) => `id="${id}"`)
+				.join(" || "),
 			fields: "id,name,email",
 			requestKey: null
 		}) as unknown as Promise<RecievedPublicUserData[]>,
@@ -63,6 +66,7 @@ export const load = (async ({ locals, params }) => {
 			body: message.body,
 			sentAt: message.sentAt || message.created
 		})),
+		flaggedByName: session.flaggedBy ? (person(session.flaggedBy)?.name ?? "") : "",
 		creditedAmount: credits.reduce((sum, credit) => sum + credit.credits, 0),
 		canViewPeople: canAccess(user, "people")
 	};

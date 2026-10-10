@@ -53,7 +53,11 @@ export const load = (async ({ locals, url }) => {
 			requestKey: null
 		});
 	const sessions = structuredClone(sessionPage.items as unknown) as ExpandedTutoringSession[];
-	const personIds = [...new Set(sessions.flatMap((session) => [session.tutor, session.tutee]))];
+	const personIds = [
+		...new Set(
+			sessions.flatMap((session) => [session.tutor, session.tutee, session.flaggedBy ?? ""])
+		)
+	].filter(Boolean);
 	const people = personIds.length
 		? ((await locals.pb.collection("publicUsers").getFullList({
 				filter: personIds.map((id) => `id="${id}"`).join(" || "),
@@ -69,7 +73,8 @@ export const load = (async ({ locals, url }) => {
 			tutor_name: peopleById.get(session.tutor)?.name ?? "Unknown tutor",
 			tutor_email: peopleById.get(session.tutor)?.email ?? "",
 			tutee_name: peopleById.get(session.tutee)?.name ?? "Unknown tutee",
-			tutee_email: peopleById.get(session.tutee)?.email ?? ""
+			tutee_email: peopleById.get(session.tutee)?.email ?? "",
+			flagged_by_name: session.flaggedBy ? (peopleById.get(session.flaggedBy)?.name ?? "") : ""
 		})),
 		filters: { search, date, review },
 		canViewPeople: canAccess(user, "people"),
@@ -101,7 +106,9 @@ export const actions: Actions = {
 		try {
 			await locals.pb.collection("tutoringSessions").update(id, {
 				durationWarning: flagged,
-				durationWarningReason: flagged ? reason : ""
+				durationWarningReason: flagged ? reason : "",
+				flaggedBy: flagged ? user.id : "",
+				flaggedAt: flagged ? new Date().toISOString() : ""
 			});
 		} catch (updateError) {
 			console.error(updateError);

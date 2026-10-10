@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { flagSource } from "$lib/flagSource";
 	import type { PageData } from "./$types";
 	import AdminSubnav from "$lib/components/AdminSubnav.svelte";
 
@@ -129,7 +130,10 @@
 							</div>
 						</div>
 						{#if session.durationWarning}
-							<p class="notice notice--danger">{session.durationWarningReason}</p>
+							<p class="notice notice--danger">
+								<span class="flag-source">{flagSource(session, session.flagged_by_name)}</span>
+								{session.durationWarningReason}
+							</p>
 						{/if}
 						<dl class="sessions__facts">
 							<div>
@@ -333,5 +337,11 @@
 		.sessions__facts {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
+	}
+	.flag-source {
+		display: block;
+		margin-bottom: 0.2rem;
+		font-size: var(--text-xs);
+		font-weight: 700;
 	}
 </style>

@@ -114,7 +114,9 @@ export const TutoringSessionSchema = z.object({
 		.optional(),
 	verificationExternalUrl: z.string().url().optional(),
 	durationWarning: z.boolean().default(false),
-	durationWarningReason: z.string().optional()
+	durationWarningReason: z.string().optional(),
+	flaggedBy: z.string().optional(),
+	flaggedAt: z.string().optional()
 });
 
 export const TutoringMessageSchema = z.object({
