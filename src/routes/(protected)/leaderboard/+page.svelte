@@ -151,9 +151,9 @@
 					{#each remainingEntries as entry (entry.id)}
 						<li>
 							<span class="rankings__rank"
-								><span class="sr-only">{entry.tied ? "Tied for rank" : "Rank"} </span>{entry.tied
-									? "T"
-									: ""}{entry.rank}</span
+								><span class="sr-only"
+									>{entry.tied ? "Tied for rank" : "Rank"}
+								</span>{entry.rank}</span
 							>
 							<span class="rankings__name">{entry.name}</span>
 							<span class="rankings__value"><b>{entry.value}</b> <small>{units}</small></span>
