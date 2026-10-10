@@ -31,9 +31,9 @@
 <svelte:head><title>{full_user?.name ?? "Account"} | ARISTA admin</title></svelte:head>
 
 <main class="page page--tool view-user">
-	<a class="back" href="/admin">
+	<a class="back" href={data.canManage ? "/admin" : "/admin/tutoring"}>
 		<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14.5 6-6 6 6 6" /></svg>
-		People
+		{data.canManage ? "People" : "Tutoring review"}
 	</a>
 	{#if full_user}
 		<header class="page-header">
@@ -65,6 +65,7 @@
 				<StrikesDisplay strikes={full_user.strikes} />
 			</div>
 
+			{#if data.canManage}
 			<section class="focus panel" aria-labelledby="focus-title">
 				<div>
 					<h2 id="focus-title" class="section-title">Credit focus</h2>
@@ -156,6 +157,7 @@
 					<button type="submit" class="btn btn-danger">Add strike</button>
 				</form>
 			</section>
+			{/if}
 		{:else}
 			<div class="empty-state">
 				<h2>This is a student account, not a member.</h2>

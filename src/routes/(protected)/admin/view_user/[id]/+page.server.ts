@@ -34,7 +34,10 @@ export const load = (async ({ params, locals }) => {
 		error(401, "You are not logged in.");
 	}
 
-	if (!canAccess(locals.user as RecievedUser, "people")) {
+	// Tutoring reviewers can open profiles to check who they're reviewing, but
+	// only People access can add credits or strikes.
+	const canManage = canAccess(locals.user as RecievedUser, "people");
+	if (!canManage && !canAccess(locals.user as RecievedUser, "tutoring")) {
 		error(401, "You don't have access to this part of the admin area.");
 	}
 
@@ -122,7 +125,8 @@ export const load = (async ({ params, locals }) => {
 		user: fullUser,
 		strikeForm,
 		creditForm,
-		tutoringSessions
+		tutoringSessions,
+		canManage
 	};
 }) satisfies PageServerLoad;
 
