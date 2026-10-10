@@ -25,10 +25,13 @@ export const GET: RequestHandler = async ({ locals }) => {
 		}
 
 		// convert to array and sort by hours and take top 10
-		const leaderboardData = Array.from(userTotals.entries())
+		const sorted = Array.from(userTotals.entries())
 			.map(([userId, totalHours]) => ({ userId, totalHours }))
-			.sort((a, b) => b.totalHours - a.totalHours)
-			.slice(0, 10);
+			.sort((a, b) => b.totalHours - a.totalHours);
+		// Keep everyone tied with 10th place.
+		const cutoff = sorted[9]?.totalHours;
+		const leaderboardData =
+			cutoff === undefined ? sorted : sorted.filter((entry) => entry.totalHours >= cutoff);
 
 		const userIds = leaderboardData.map((entry) => entry.userId);
 
@@ -43,10 +46,11 @@ export const GET: RequestHandler = async ({ locals }) => {
 			requestKey: null
 		})) as unknown as RecievedPublicUserData[];
 
-		const leaderboard = leaderboardData.map((entry, index) => {
+		// Ties share a rank (1, 1, 3).
+		const leaderboard = leaderboardData.map((entry) => {
 			const user = users.find((u) => u.id === entry.userId);
 			return {
-				rank: index + 1,
+				rank: leaderboardData.findIndex((other) => other.totalHours === entry.totalHours) + 1,
 				name: user?.name || "Unknown",
 				hours: entry.totalHours
 			};

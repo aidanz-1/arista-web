@@ -62,12 +62,24 @@
 		}
 		return totals;
 	});
+	// Ties share a rank (1, 1, 3) and are listed by name. Everyone tied with
+	// the last spot is kept, so the list can run past 20.
 	const leaderboard = $derived.by(() => {
-		return data.users
-			.map((user) => ({ name: displayName(user), value: creditTotalsByUser.get(user.id) ?? 0 }))
+		const sorted = data.users
+			.map((user) => ({
+				id: user.id,
+				name: displayName(user),
+				value: creditTotalsByUser.get(user.id) ?? 0
+			}))
 			.filter((entry) => entry.value > 0)
-			.sort((a, b) => b.value - a.value)
-			.slice(0, 20);
+			.sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+		const ranked = sorted.map((entry, index) => ({
+			...entry,
+			rank: sorted.findIndex((other) => other.value === entry.value) + 1,
+			tied: sorted.filter((other) => other.value === entry.value).length > 1
+		}));
+		const cutoff = ranked[19]?.value;
+		return cutoff === undefined ? ranked : ranked.filter((entry) => entry.value >= cutoff);
 	});
 
 	const units = $derived(creditType === "tutoring" ? "tutoring credits" : "event credits");
@@ -119,8 +131,8 @@
 			</div>
 		{:else}
 			<ol class="podium" aria-label="Top three">
-				{#each podiumEntries as entry, index}
-					<li class="podium__place podium__place--{index + 1}" style:--order={index}>
+				{#each podiumEntries as entry, index (entry.id)}
+					<li class="podium__place podium__place--{entry.rank}" style:--order={index}>
 						<div class="podium__person">
 							<span class="podium__avatar" aria-hidden="true">{initials({ name: entry.name })}</span
 							>
@@ -128,17 +140,21 @@
 							<span class="podium__value"><b>{entry.value}</b> {units}</span>
 						</div>
 						<div class="podium__block" aria-hidden="true">
-							<span>{index + 1}</span>
+							<span>{entry.tied ? "T" : ""}{entry.rank}</span>
 						</div>
-						<span class="sr-only">Rank {index + 1}</span>
+						<span class="sr-only">{entry.tied ? "Tied for rank" : "Rank"} {entry.rank}</span>
 					</li>
 				{/each}
 			</ol>
 			{#if remainingEntries.length}
 				<ol class="rankings" start="4">
-					{#each remainingEntries as entry, index}
+					{#each remainingEntries as entry (entry.id)}
 						<li>
-							<span class="rankings__rank">{index + 4}</span>
+							<span class="rankings__rank"
+								><span class="sr-only">{entry.tied ? "Tied for rank" : "Rank"} </span>{entry.tied
+									? "T"
+									: ""}{entry.rank}</span
+							>
 							<span class="rankings__name">{entry.name}</span>
 							<span class="rankings__value"><b>{entry.value}</b> <small>{units}</small></span>
 						</li>
