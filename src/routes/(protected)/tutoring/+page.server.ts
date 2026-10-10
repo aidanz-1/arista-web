@@ -467,8 +467,13 @@ export const actions: Actions = {
 			tuteeMarkedComplete: true,
 			dateCompleted: new Date().toISOString(),
 			durationInHours,
-			durationWarning: warning.durationWarning,
-			durationWarningReason: warning.durationWarningReason
+			// Keep a flag that's already there (a reviewer's, or the proof check's).
+			...(tutoringSession.durationWarning
+				? {}
+				: {
+						durationWarning: warning.durationWarning,
+						durationWarningReason: warning.durationWarningReason
+					})
 		});
 		return { finishTutoringForm };
 	},
