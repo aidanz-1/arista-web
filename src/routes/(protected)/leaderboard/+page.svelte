@@ -86,7 +86,7 @@
 		return cutoff === undefined ? ranked : ranked.filter((entry) => entry.value >= cutoff);
 	});
 
-	const units = $derived(creditType === "tutoring" ? "tutoring credits" : "event credits");
+	const units = $derived(creditType === "tutoring" ? "hours tutored" : "hours volunteered");
 	// The podium has one step per rank in the top three, and everyone tied at
 	// that rank stands on it together. First place stays in the middle.
 	const podium = $derived.by(() => {
@@ -140,15 +140,12 @@
 		{#if data.membersOnly}
 			<div class="empty-state">
 				<h2>The leaderboard is for ARISTA members.</h2>
-				<p>Members can see who has earned the most tutoring and event credits each semester.</p>
+				<p>Members can see who has tutored and volunteered the most each semester.</p>
 			</div>
 		{:else if leaderboard.length === 0}
 			<div class="empty-state">
-				<h2>
-					No {creditType === "tutoring" ? "tutoring" : "event"} credits yet for {selectedPeriod?.label ??
-						"this period"}.
-				</h2>
-				<p>Rankings show up as soon as the first credits are recorded.</p>
+				<h2>No {units} yet for {selectedPeriod?.label ?? "this period"}.</h2>
+				<p>Rankings show up as soon as the first hours are credited.</p>
 			</div>
 		{:else}
 			<ol class="podium podium--{podium.length}" aria-label="Top three">
@@ -167,7 +164,7 @@
 							</span>
 							<span class="podium__value"
 								><b>{step.value}</b> <span class="unit-long">{units}</span><span class="unit-short"
-									>credits</span
+									>hours</span
 								>{step.people.length > 1 ? " each" : ""}</span
 							>
 						</div>
@@ -193,7 +190,7 @@
 							<span class="rankings__value"
 								><b>{entry.value}</b>
 								<small
-									><span class="unit-long">{units}</span><span class="unit-short">credits</span
+									><span class="unit-long">{units}</span><span class="unit-short">hours</span
 									></small
 								></span
 							>
