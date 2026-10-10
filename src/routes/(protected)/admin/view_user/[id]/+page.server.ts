@@ -147,6 +147,22 @@ export const actions = {
 		}
 		return { choiceUpdated: true };
 	},
+	delete_strike: async ({ request, locals, params }) => {
+		if (!canAccess(locals.user as RecievedUser, "people")) {
+			error(401, "You don't have access to this part of the admin area.");
+		}
+		const strikeId = String((await request.formData()).get("strikeId") ?? "");
+		try {
+			const strike = await locals.pb.collection("strikes").getOne(strikeId, { requestKey: null });
+			if (strike.strikedUser !== params.id)
+				return fail(400, { strikeError: "That strike isn't on this profile." });
+			await locals.pb.collection("strikes").delete(strikeId, { requestKey: null });
+		} catch (deleteError) {
+			console.error(deleteError);
+			return fail(400, { strikeError: "Couldn't remove the strike. Try again." });
+		}
+		return { strikeRemoved: true };
+	},
 	strike_user: async ({ request, locals, params }) => {
 		const form = await superValidate(request, zod(StrikeSchema));
 		if (!form.valid) {

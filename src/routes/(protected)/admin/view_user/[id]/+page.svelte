@@ -68,7 +68,7 @@
 					activeSemesterId={data.creditSemesters?.find((semester) => semester.active)?.id}
 					requirements={data.creditRequirements ?? []}
 				/>
-				<StrikesDisplay strikes={full_user.strikes} />
+				<StrikesDisplay strikes={full_user.strikes} canRemove={data.canManage} />
 			</div>
 
 			{#if data.canManage}
