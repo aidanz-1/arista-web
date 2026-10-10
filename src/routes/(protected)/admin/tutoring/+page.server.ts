@@ -131,18 +131,12 @@ export const actions: Actions = {
 		if (!user || !isAdmin(user)) {
 			error(403, "Only admins can mark a session fraudulent.");
 		}
-		const form = await request.formData();
-		const id = String(form.get("id") ?? "");
-		const reason = String(form.get("reason") ?? "")
-			.trim()
-			.slice(0, 500);
+		const id = String((await request.formData()).get("id") ?? "");
 		if (!id) return fail(400, { fraudError: "Missing session.", fraudId: id });
-		if (!reason)
-			return fail(400, { fraudError: "Say why this session is fraudulent.", fraudId: id });
 		try {
 			await locals.pb
 				.collection("tutoringSessions")
-				.update(id, { fraud: true, fraudReason: reason }, { requestKey: null });
+				.update(id, { fraud: true }, { requestKey: null });
 		} catch (updateError) {
 			console.error(updateError);
 			return fail(400, {

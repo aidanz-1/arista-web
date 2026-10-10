@@ -25,19 +25,20 @@
 
 {#if session.fraud}
 	<div class="fraud fraud--marked" role="note">
+		<!-- Who marked it and what was removed are admin-only (the server hides them from everyone else). -->
 		<strong>
-			Marked fraudulent{fraudByName ? ` by ${fraudByName}` : ""}{session.fraudAt
+			Marked fraudulent{canMark && fraudByName ? ` by ${fraudByName}` : ""}{canMark &&
+			session.fraudAt
 				? ` on ${format(new Date(session.fraudAt), "MMM d, yyyy")}`
 				: ""}
 		</strong>
-		<p>{session.fraudReason}</p>
-		<p class="fraud__credits">
-			{removed > 0
-				? `${removed} tutoring credit${removed === 1 ? "" : "s"} removed from ${tutorName}.`
-				: `${tutorName} hadn't been credited for this session, so no credits were removed.`}
-			This session can't earn credit again.
-		</p>
 		{#if canMark}
+			{#if session.fraudReason}<p>{session.fraudReason}</p>{/if}
+			<p class="fraud__credits">
+				{removed > 0
+					? `${removed} tutoring credit${removed === 1 ? "" : "s"} removed from ${tutorName}.`
+					: "No credits had been given for this session."}
+			</p>
 			<form
 				method="POST"
 				action="?/undo_fraud"
@@ -62,36 +63,23 @@
 		{/if}
 	</div>
 {:else if canMark && session.durationWarning}
-	<details class="fraud">
-		<summary>Mark fraudulent</summary>
-		<form
-			method="POST"
-			action="?/mark_fraud"
-			use:enhance={({ cancel }) => {
-				if (
-					!confirm(
-						`Mark this session fraudulent? ${tutorName} loses any tutoring credits from it, and this can't be undone here.`
-					)
-				)
-					cancel();
-				return async ({ update }) => update({ reset: false });
-			}}
-		>
-			<input type="hidden" name="id" value={session.id} />
-			<label>
-				<span class="field-label">What makes it fraudulent?</span>
-				<textarea name="reason" rows="2" maxlength="500" required></textarea>
-			</label>
-			<p class="muted">
-				Removes {tutorName}'s tutoring credits for this session, blocks it from being credited
-				again, and records your name and reason.
-			</p>
-			<button type="submit" class="btn btn-sm btn-danger">Mark fraudulent</button>
-			{#if result.fraudId === session.id && result.fraudError}
-				<span class="field-error">{result.fraudError}</span>
-			{/if}
-		</form>
-	</details>
+	<form
+		method="POST"
+		action="?/mark_fraud"
+		class="fraud fraud__mark"
+		use:enhance={({ cancel }) => {
+			if (
+				!confirm(`Mark this session fraudulent? ${tutorName} loses any tutoring credits from it.`)
+			)
+				cancel();
+		}}
+	>
+		<input type="hidden" name="id" value={session.id} />
+		<button type="submit" class="btn btn-sm btn-danger">Mark fraudulent</button>
+		{#if result.fraudId === session.id && result.fraudError}
+			<span class="field-error">{result.fraudError}</span>
+		{/if}
+	</form>
 {/if}
 
 <style>
@@ -118,27 +106,13 @@
 		color: var(--muted);
 		font-size: var(--text-sm);
 	}
-	summary {
-		width: fit-content;
-		color: var(--danger);
-		font-size: var(--text-sm);
-		font-weight: 600;
-		cursor: pointer;
-	}
 	form {
 		display: grid;
 		gap: 0.5rem;
 		max-width: 36rem;
 		margin-top: 0.6rem;
 	}
-	form p {
-		margin: 0;
-		font-size: var(--text-sm);
-	}
 	form button {
 		justify-self: start;
-	}
-	textarea {
-		width: 100%;
 	}
 </style>
