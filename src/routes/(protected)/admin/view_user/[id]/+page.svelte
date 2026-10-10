@@ -20,6 +20,12 @@
 	const creditFormType = formFieldProxy(creditFormObj, "type").value;
 
 	let full_user = $derived(data.user);
+	// Saved focus, kept locally so the switch doesn't reload page data (which
+	// would wipe anything typed into Add credit).
+	let savedFocus = $state<{ id: string; value: boolean } | null>(null);
+	const creditChoice = $derived(
+		savedFocus?.id === full_user?.id ? savedFocus.value : Boolean(full_user?.creditChoice)
+	);
 	const creditedParts = $derived(
 		(page.form as { creditedParts?: { type: string; credits: number }[] } | null)?.creditedParts
 	);
@@ -57,7 +63,7 @@
 			<div class="view-user__records">
 				<SemesterCreditPanel
 					credits={full_user.credits}
-					user={full_user}
+					user={{ ...full_user, creditChoice }}
 					semesters={data.creditSemesters ?? []}
 					activeSemesterId={data.creditSemesters?.find((semester) => semester.active)?.id}
 					requirements={data.creditRequirements ?? []}
@@ -66,97 +72,108 @@
 			</div>
 
 			{#if data.canManage}
-			<section class="focus panel" aria-labelledby="focus-title">
-				<div>
-					<h2 id="focus-title" class="section-title">Credit focus</h2>
-					<p class="muted">
-						Which category carries this member's bigger requirement this semester.
-					</p>
-				</div>
-				<form method="POST" action="?/set_credit_choice" use:enhance class="focus__form">
-					<div class="radio-group" role="group" aria-label="Credit focus">
-						<button
-							type="submit"
-							name="creditChoice"
-							value="false"
-							class="focus__option"
-							class:active={!full_user.creditChoice}
-							aria-pressed={!full_user.creditChoice}>More events</button
-						>
-						<button
-							type="submit"
-							name="creditChoice"
-							value="true"
-							class="focus__option"
-							class:active={full_user.creditChoice}
-							aria-pressed={full_user.creditChoice}>More tutoring</button
-						>
+				<section class="focus panel" aria-labelledby="focus-title">
+					<div>
+						<h2 id="focus-title" class="section-title">Credit focus</h2>
+						<p class="muted">
+							Which category carries this member's bigger requirement this semester.
+						</p>
 					</div>
-					<p class="focus__status" aria-live="polite">
-						{#if choiceResult.choiceError}
-							<span class="field-error">{choiceResult.choiceError}</span>
-						{:else if choiceResult.choiceUpdated}
-							Saved.
-						{/if}
-					</p>
-				</form>
-			</section>
+					<form
+						method="POST"
+						action="?/set_credit_choice"
+						class="focus__form"
+						use:enhance={({ formData }) => {
+							const value = formData.get("creditChoice") === "true";
+							return async ({ result, update }) => {
+								if (result.type === "success") savedFocus = { id: full_user.id, value };
+								await update({ invalidateAll: false, reset: false });
+							};
+						}}
+					>
+						<div class="radio-group" role="group" aria-label="Credit focus">
+							<button
+								type="submit"
+								name="creditChoice"
+								value="false"
+								class="focus__option"
+								class:active={!creditChoice}
+								aria-pressed={!creditChoice}>More events</button
+							>
+							<button
+								type="submit"
+								name="creditChoice"
+								value="true"
+								class="focus__option"
+								class:active={creditChoice}
+								aria-pressed={creditChoice}>More tutoring</button
+							>
+						</div>
+						<p class="focus__status" aria-live="polite">
+							{#if choiceResult.choiceError}
+								<span class="field-error">{choiceResult.choiceError}</span>
+							{:else if choiceResult.choiceUpdated}
+								Saved.
+							{/if}
+						</p>
+					</form>
+				</section>
 
-			<section class="actions" aria-label="Record credit or a strike">
-				<form class="panel" method="POST" action="?/credit_user" use:enhance>
-					<h2 class="section-title">Add credit</h2>
-					<label class="actions__type">
-						<span class="field-label">Type</span>
-						<select name="type" bind:value={$creditFormType}>
-							<option value="event">Event</option>
-							<option value="tutoring">Tutoring</option>
-							<option value="other">Other</option>
-							<option value="other_then_event">Other, then events</option>
-							<option value="other_then_tutoring">Other, then tutoring</option>
-						</select>
-					</label>
-					<InputField
-						label="Credits"
-						placeholder="1"
-						field="credits"
-						form={creditFormObj}
-						type="number"
-						inputmode="decimal"
-						step="any"
-					/>
-					<InputField
-						label="Reason"
-						placeholder="Late addition to the Oct 12 cleanup"
-						field="manualExplanation"
-						form={creditFormObj}
-					/>
-					{#if $creditFormType === "other_then_event" || $creditFormType === "other_then_tutoring"}
-						<p class="muted actions__hint">
-							Fills the Other credits they still need this semester, then adds the rest to {$creditFormType ===
-							"other_then_event"
-								? "events"
-								: "tutoring"}.
-						</p>
-					{/if}
-					<button type="submit" class="btn btn-primary">Add credit</button>
-					{#if creditedParts}
-						<p class="actions__done" role="status">
-							Added {creditedParts.map((part) => `${part.credits} ${part.type}`).join(" and ")} credits.
-						</p>
-					{/if}
-				</form>
-				<form class="panel" method="POST" action="?/strike_user" use:enhance>
-					<h2 class="section-title">Add a strike</h2>
-					<InputField
-						label="Reason"
-						placeholder="Missed a required meeting"
-						field="reason"
-						form={strikeFormObj}
-					/>
-					<InputField label="Weight" field="weight" form={strikeFormObj} />
-					<button type="submit" class="btn btn-danger">Add strike</button>
-				</form>
-			</section>
+				<section class="actions" aria-label="Record credit or a strike">
+					<form class="panel" method="POST" action="?/credit_user" use:enhance>
+						<h2 class="section-title">Add credit</h2>
+						<label class="actions__type">
+							<span class="field-label">Type</span>
+							<select name="type" bind:value={$creditFormType}>
+								<option value="event">Event</option>
+								<option value="tutoring">Tutoring</option>
+								<option value="other">Other</option>
+								<option value="other_then_event">Other, then events</option>
+								<option value="other_then_tutoring">Other, then tutoring</option>
+							</select>
+						</label>
+						<InputField
+							label="Credits"
+							placeholder="1"
+							field="credits"
+							form={creditFormObj}
+							type="number"
+							inputmode="decimal"
+							step="any"
+						/>
+						<InputField
+							label="Reason"
+							placeholder="Late addition to the Oct 12 cleanup"
+							field="manualExplanation"
+							form={creditFormObj}
+						/>
+						{#if $creditFormType === "other_then_event" || $creditFormType === "other_then_tutoring"}
+							<p class="muted actions__hint">
+								Fills the Other credits they still need this semester, then adds the rest to {$creditFormType ===
+								"other_then_event"
+									? "events"
+									: "tutoring"}.
+							</p>
+						{/if}
+						<button type="submit" class="btn btn-primary">Add credit</button>
+						{#if creditedParts}
+							<p class="actions__done" role="status">
+								Added {creditedParts.map((part) => `${part.credits} ${part.type}`).join(" and ")} credits.
+							</p>
+						{/if}
+					</form>
+					<form class="panel" method="POST" action="?/strike_user" use:enhance>
+						<h2 class="section-title">Add a strike</h2>
+						<InputField
+							label="Reason"
+							placeholder="Missed a required meeting"
+							field="reason"
+							form={strikeFormObj}
+						/>
+						<InputField label="Weight" field="weight" form={strikeFormObj} />
+						<button type="submit" class="btn btn-danger">Add strike</button>
+					</form>
+				</section>
 			{/if}
 		{:else}
 			<div class="empty-state">
