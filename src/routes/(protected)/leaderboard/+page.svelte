@@ -140,7 +140,7 @@
 							<span class="podium__value"><b>{entry.value}</b> {units}</span>
 						</div>
 						<div class="podium__block" aria-hidden="true">
-							<span>{entry.tied ? "T" : ""}{entry.rank}</span>
+							<span>{entry.rank}</span>
 						</div>
 						<span class="sr-only">{entry.tied ? "Tied for rank" : "Rank"} {entry.rank}</span>
 					</li>
