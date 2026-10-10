@@ -6,7 +6,8 @@ export const load = (async ({ locals }) => {
 		return {
 			users: [],
 			allCredits: [],
-			creditSemesters: []
+			creditSemesters: [],
+			membersOnly: true
 		};
 	}
 
@@ -29,6 +30,7 @@ export const load = (async ({ locals }) => {
 	return {
 		users,
 		allCredits,
-		creditSemesters
+		creditSemesters,
+		membersOnly: false
 	};
 }) satisfies PageServerLoad;

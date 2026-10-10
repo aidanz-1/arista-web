@@ -12,6 +12,7 @@
 			users: Pick<RecievedPublicUserData, "id" | "name" | "preferredName">[];
 			allCredits: RecievedCredit[];
 			creditSemesters: RecievedCreditSemester[];
+			membersOnly: boolean;
 		};
 	}
 
@@ -41,7 +42,10 @@
 					semesterIds: [semester.id]
 				});
 		}
-		return [...individual, ...schoolYears.values()].sort((a, b) => a.label.localeCompare(b.label));
+		// Newest semester first, then whole school years. A year with only one
+		// semester so far would just repeat that semester, so it's left out.
+		const years = [...schoolYears.values()].filter((year) => year.semesterIds.length > 1).reverse();
+		return [...individual.reverse(), ...years];
 	});
 
 	let selectedPeriodId = $state("");
@@ -83,8 +87,20 @@
 	});
 
 	const units = $derived(creditType === "tutoring" ? "tutoring credits" : "event credits");
-	const podiumEntries = $derived(leaderboard.slice(0, 3));
-	const remainingEntries = $derived(leaderboard.slice(3));
+	// The podium has one step per rank in the top three, and everyone tied at
+	// that rank stands on it together. First place stays in the middle.
+	const podium = $derived.by(() => {
+		const steps: { rank: number; value: number; people: typeof leaderboard }[] = [];
+		for (const entry of leaderboard) {
+			if (entry.rank > 3) break;
+			const step = steps.find((existing) => existing.rank === entry.rank);
+			if (step) step.people.push(entry);
+			else steps.push({ rank: entry.rank, value: entry.value, people: [entry] });
+		}
+		return steps;
+	});
+	const podiumCount = $derived(podium.reduce((sum, step) => sum + step.people.length, 0));
+	const remainingEntries = $derived(leaderboard.slice(podiumCount));
 </script>
 
 <svelte:head><title>Leaderboard | ARISTA</title></svelte:head>
@@ -121,7 +137,12 @@
 	</header>
 
 	{#key `${creditType}:${selectedPeriodId}`}
-		{#if leaderboard.length === 0}
+		{#if data.membersOnly}
+			<div class="empty-state">
+				<h2>The leaderboard is for ARISTA members.</h2>
+				<p>Members can see who has earned the most tutoring and event credits each semester.</p>
+			</div>
+		{:else if leaderboard.length === 0}
 			<div class="empty-state">
 				<h2>
 					No {creditType === "tutoring" ? "tutoring" : "event"} credits yet for {selectedPeriod?.label ??
@@ -131,23 +152,36 @@
 			</div>
 		{:else}
 			<ol class="podium" aria-label="Top three">
-				{#each podiumEntries as entry, index (entry.id)}
-					<li class="podium__place podium__place--{entry.rank}" style:--order={index}>
+				{#each podium as step, position (step.rank)}
+					<li class="podium__place podium__place--{position + 1}" style:--order={position}>
 						<div class="podium__person">
-							<span class="podium__avatar" aria-hidden="true">{initials({ name: entry.name })}</span
+							<span class="podium__avatars" aria-hidden="true">
+								{#each step.people.slice(0, 3) as person (person.id)}
+									<span class="podium__avatar">{initials({ name: person.name })}</span>
+								{/each}
+							</span>
+							<span class="podium__names" class:podium__names--many={step.people.length > 3}>
+								{#each step.people as person (person.id)}
+									<strong>{person.name}</strong>
+								{/each}
+							</span>
+							<span class="podium__value"
+								><b>{step.value}</b> <span class="unit-long">{units}</span><span class="unit-short"
+									>credits</span
+								>{step.people.length > 1 ? " each" : ""}</span
 							>
-							<strong>{entry.name}</strong>
-							<span class="podium__value"><b>{entry.value}</b> {units}</span>
 						</div>
 						<div class="podium__block" aria-hidden="true">
-							<span>{entry.rank}</span>
+							<span>{step.rank}</span>
 						</div>
-						<span class="sr-only">{entry.tied ? "Tied for rank" : "Rank"} {entry.rank}</span>
+						<span class="sr-only"
+							>{step.people.length > 1 ? "Tied for rank" : "Rank"} {step.rank}</span
+						>
 					</li>
 				{/each}
 			</ol>
 			{#if remainingEntries.length}
-				<ol class="rankings" start="4">
+				<ol class="rankings">
 					{#each remainingEntries as entry (entry.id)}
 						<li>
 							<span class="rankings__rank"
@@ -156,7 +190,13 @@
 								</span>{entry.rank}</span
 							>
 							<span class="rankings__name">{entry.name}</span>
-							<span class="rankings__value"><b>{entry.value}</b> <small>{units}</small></span>
+							<span class="rankings__value"
+								><b>{entry.value}</b>
+								<small
+									><span class="unit-long">{units}</span><span class="unit-short">credits</span
+									></small
+								></span
+							>
 						</li>
 					{/each}
 				</ol>
@@ -227,13 +267,16 @@
 		animation-delay: calc(var(--order) * 90ms);
 	}
 	.podium__place--1 {
-		order: 2;
+		grid-column: 2;
+		grid-row: 1;
 	}
 	.podium__place--2 {
-		order: 1;
+		grid-column: 1;
+		grid-row: 1;
 	}
 	.podium__place--3 {
-		order: 3;
+		grid-column: 3;
+		grid-row: 1;
 	}
 	.podium__person {
 		display: grid;
@@ -242,12 +285,25 @@
 		padding: 0 0.5rem 0.9rem;
 		text-align: center;
 	}
+	.podium__avatars {
+		display: flex;
+		justify-content: center;
+		margin-bottom: 0.25rem;
+	}
+	/* Tied people: smaller, overlapping circles so each set of initials shows. */
+	.podium__avatar:not(:only-child) {
+		width: 2.6rem;
+		height: 2.6rem;
+		font-size: 0.9rem;
+	}
+	.podium__avatar + .podium__avatar {
+		margin-left: -0.45rem;
+	}
 	.podium__avatar {
 		display: grid;
 		place-items: center;
 		width: 3.25rem;
 		height: 3.25rem;
-		margin-bottom: 0.25rem;
 		border-radius: 50%;
 		background: var(--wash);
 		color: var(--ink);
@@ -259,14 +315,39 @@
 			0 0 0 5px var(--line-strong);
 	}
 	.podium__place--1 .podium__avatar {
-		width: 4rem;
-		height: 4rem;
 		background: var(--flame);
 		color: #2a1a00;
-		font-size: 1.35rem;
 		box-shadow:
 			0 0 0 3px var(--paper),
 			0 0 0 5px var(--flame);
+	}
+	.podium__place--1 .podium__avatar:only-child {
+		width: 4rem;
+		height: 4rem;
+		font-size: 1.35rem;
+	}
+	.podium__names {
+		display: grid;
+		justify-items: center;
+		gap: 0.3rem;
+		max-width: 100%;
+		margin: 0.15rem 0 0.2rem;
+	}
+	/* Several tied names: smaller and lighter so the stack reads as a list. */
+	.podium__names:has(strong + strong) strong {
+		font-family: var(--font-text);
+		font-size: var(--text-sm);
+		font-weight: 600;
+	}
+	/* Big ties: names run together in smaller type instead of a tall stack. */
+	.podium__names--many {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 0 0.5rem;
+	}
+	.podium__names--many strong {
+		font-size: var(--text-sm);
 	}
 	.podium__person strong {
 		max-width: 100%;
@@ -362,6 +443,10 @@
 		font-size: var(--text-xs);
 	}
 
+	.unit-short {
+		display: none;
+	}
+
 	@media (max-width: 520px) {
 		.podium__person strong {
 			white-space: normal;
@@ -378,8 +463,25 @@
 		.podium__place--3 .podium__block {
 			height: 4.5rem;
 		}
-		.rankings__value small {
+		/* Ties share a narrow column: smaller names, smaller circles. */
+		.podium__names:has(strong + strong) strong {
+			font-size: 0.78rem;
+			line-height: 1.25;
+			white-space: normal;
+		}
+		.podium__avatar:not(:only-child) {
+			width: 2rem;
+			height: 2rem;
+			font-size: 0.7rem;
+		}
+		.podium__avatar + .podium__avatar {
+			margin-left: -0.2rem;
+		}
+		.unit-long {
 			display: none;
+		}
+		.unit-short {
+			display: inline;
 		}
 	}
 </style>

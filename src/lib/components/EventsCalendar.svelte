@@ -65,7 +65,10 @@
 	}
 
 	function eventState(event: RecievedEvent) {
-		return event.isComplete ? "complete" : event.signupStatus ? "closed" : "open";
+		if (event.isComplete) return "complete";
+		// Over once its end time passes, even before an organizer marks it complete.
+		if (new Date(event.end_time) < new Date()) return "ended";
+		return event.signupStatus ? "closed" : "open";
 	}
 
 	function eventTime(event: RecievedEvent) {
@@ -85,7 +88,9 @@
 
 	function stateLabel(event: RecievedEvent) {
 		const state = eventState(event);
-		return state === "complete" ? "Complete" : state === "closed" ? "Sign-ups closed" : "Open";
+		if (state === "complete") return "Complete";
+		if (state === "ended") return "Ended";
+		return state === "closed" ? "Sign-ups closed" : "Open";
 	}
 
 	function isToday(date: Date) {
@@ -714,6 +719,11 @@
 	}
 	.chip {
 		display: grid;
+		/* minmax(0, 1fr) lets long names shrink and end in "…" instead of
+		   overflowing the cell and getting cut off on the left. */
+		grid-template-columns: minmax(0, 1fr);
+		justify-items: start;
+		min-width: 0;
 		gap: 0.05rem;
 		padding: 0.2rem 0.35rem 0.2rem 0.45rem;
 		overflow: hidden;
@@ -730,7 +740,9 @@
 	.chip:hover {
 		background: color-mix(in srgb, var(--place) 24%, var(--surface));
 	}
-	.chip span {
+	.chip span,
+	.chip time {
+		max-width: 100%;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -843,6 +855,7 @@
 		background: var(--flame-soft);
 		color: var(--flame-text);
 	}
+	.state--ended,
 	.state--complete {
 		background: var(--surface-sunken);
 		color: var(--muted);
