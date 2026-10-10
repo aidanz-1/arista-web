@@ -106,7 +106,8 @@ export const load = (async ({ params, locals }) => {
 					created: session.created as string,
 					isComplete: Boolean(session.isComplete),
 					waiting: Boolean(session.tuteeMarkedComplete) && !session.isComplete,
-					flagged: Boolean(session.durationWarning)
+					flagged: Boolean(session.durationWarning),
+					fraud: Boolean(session.fraud)
 				};
 			})
 		: null;

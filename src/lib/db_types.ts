@@ -116,7 +116,12 @@ export const TutoringSessionSchema = z.object({
 	durationWarning: z.boolean().default(false),
 	durationWarningReason: z.string().optional(),
 	flaggedBy: z.string().optional(),
-	flaggedAt: z.string().optional()
+	flaggedAt: z.string().optional(),
+	fraud: z.boolean().optional(),
+	fraudReason: z.string().optional(),
+	fraudBy: z.string().optional(),
+	fraudAt: z.string().optional(),
+	fraudCreditsRemoved: z.number().optional()
 });
 
 export const TutoringMessageSchema = z.object({

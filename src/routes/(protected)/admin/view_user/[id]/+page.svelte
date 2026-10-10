@@ -20,6 +20,9 @@
 	const creditFormType = formFieldProxy(creditFormObj, "type").value;
 
 	let full_user = $derived(data.user);
+	const fraudCount = $derived(
+		data.tutoringSessions?.filter((session) => session.fraud).length ?? 0
+	);
 	// Saved focus, kept locally so the switch doesn't reload page data (which
 	// would wipe anything typed into Add credit).
 	let savedFocus = $state<{ id: string; value: boolean } | null>(null);
@@ -185,6 +188,12 @@
 		{#if data.tutoringSessions}
 			<section class="panel tutoring-list" aria-labelledby="tutoring-title">
 				<h2 id="tutoring-title" class="section-title">Tutoring sessions</h2>
+				{#if fraudCount}
+					<p class="notice notice--danger">
+						{fraudCount} session{fraudCount === 1 ? " was" : "s were"} marked fraudulent. Open
+						{fraudCount === 1 ? "it" : "them"} below for the reason and who decided.
+					</p>
+				{/if}
 				{#if data.tutoringSessions.length === 0}
 					<p class="muted">No tutoring sessions yet.</p>
 				{:else}
@@ -207,7 +216,9 @@
 										>
 									</span>
 									<span class="tutoring-list__badges">
-										{#if session.flagged}<span class="badge badge--danger">Flagged</span>{/if}
+										{#if session.fraud}<span class="badge badge--danger">Fraudulent</span
+											>{:else if session.flagged}<span class="badge badge--danger">Flagged</span
+											>{/if}
 										{#if session.isComplete}
 											<span class="badge badge--success">Complete</span>
 										{:else if session.waiting}

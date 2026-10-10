@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { flagSource } from "$lib/flagSource";
+	import FraudReview from "$lib/components/FraudReview.svelte";
 	import { enhance } from "$app/forms";
 	import { page } from "$app/state";
 	import AdminSubnav from "$lib/components/AdminSubnav.svelte";
@@ -55,7 +56,8 @@
 				</p>
 			</div>
 			<div class="detail__badges">
-				{#if session.durationWarning}<span class="badge badge--danger">Flagged</span>{/if}
+				{#if session.fraud}<span class="badge badge--danger">Fraudulent</span>
+				{:else if session.durationWarning}<span class="badge badge--danger">Flagged</span>{/if}
 				{#if session.isComplete}
 					<span class="badge badge--success">Complete</span>
 				{:else if session.tuteeMarkedComplete}
@@ -142,21 +144,29 @@
 			</a>
 		{/if}
 
-		<form method="POST" action="?/set_flag" use:enhance class="flag">
-			<input type="hidden" name="id" value={session.id} />
-			{#if session.durationWarning}
-				<input type="hidden" name="flagged" value="false" />
-				<button type="submit" class="btn btn-sm">Clear flag</button>
-			{:else}
-				<input type="hidden" name="flagged" value="true" />
-				<label class="flag__reason">
-					<span class="sr-only">Reason for flagging</span>
-					<input name="reason" placeholder="Reason to flag this session" maxlength="256" />
-				</label>
-				<button type="submit" class="btn btn-sm">Flag for review</button>
-			{/if}
-			{#if flagResult.flagError}<span class="field-error">{flagResult.flagError}</span>{/if}
-		</form>
+		{#if !session.fraud}
+			<form method="POST" action="?/set_flag" use:enhance class="flag">
+				<input type="hidden" name="id" value={session.id} />
+				{#if session.durationWarning}
+					<input type="hidden" name="flagged" value="false" />
+					<button type="submit" class="btn btn-sm">Clear flag</button>
+				{:else}
+					<input type="hidden" name="flagged" value="true" />
+					<label class="flag__reason">
+						<span class="sr-only">Reason for flagging</span>
+						<input name="reason" placeholder="Reason to flag this session" maxlength="256" />
+					</label>
+					<button type="submit" class="btn btn-sm">Flag for review</button>
+				{/if}
+				{#if flagResult.flagError}<span class="field-error">{flagResult.flagError}</span>{/if}
+			</form>
+		{/if}
+		<FraudReview
+			canMark={data.isAdmin}
+			{session}
+			fraudByName={data.fraudByName}
+			tutorName={data.tutor.name}
+		/>
 	</section>
 
 	<section class="panel chat" aria-labelledby="chat-title">

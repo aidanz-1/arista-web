@@ -1,5 +1,5 @@
 import { error, fail } from "@sveltejs/kit";
-import { canAccess } from "$lib/adminAccess";
+import { canAccess, isAdmin } from "$lib/adminAccess";
 import type { ExpandedTutoringSession, RecievedPublicUserData, RecievedUser } from "$lib/db_types";
 import type { Actions, PageServerLoad } from "./$types";
 
@@ -39,7 +39,8 @@ export const load = (async ({ locals, url }) => {
 			`((created>="${start}" && created<="${end}") || (dateCompleted>="${start}" && dateCompleted<="${end}"))`
 		);
 	}
-	if (review === "warnings") filters.push("durationWarning=true");
+	if (review === "warnings") filters.push("durationWarning=true && fraud!=true");
+	if (review === "fraud") filters.push("fraud=true");
 	if (review === "proofs") filters.push("verificationImage!=''");
 	if (review === "awaiting-proof")
 		filters.push("tuteeMarkedComplete=true && verificationImage='' ");
@@ -55,7 +56,12 @@ export const load = (async ({ locals, url }) => {
 	const sessions = structuredClone(sessionPage.items as unknown) as ExpandedTutoringSession[];
 	const personIds = [
 		...new Set(
-			sessions.flatMap((session) => [session.tutor, session.tutee, session.flaggedBy ?? ""])
+			sessions.flatMap((session) => [
+				session.tutor,
+				session.tutee,
+				session.flaggedBy ?? "",
+				session.fraudBy ?? ""
+			])
 		)
 	].filter(Boolean);
 	const people = personIds.length
@@ -74,10 +80,12 @@ export const load = (async ({ locals, url }) => {
 			tutor_email: peopleById.get(session.tutor)?.email ?? "",
 			tutee_name: peopleById.get(session.tutee)?.name ?? "Unknown tutee",
 			tutee_email: peopleById.get(session.tutee)?.email ?? "",
+			fraud_by_name: session.fraudBy ? (peopleById.get(session.fraudBy)?.name ?? "") : "",
 			flagged_by_name: session.flaggedBy ? (peopleById.get(session.flaggedBy)?.name ?? "") : ""
 		})),
 		filters: { search, date, review },
 		canViewPeople: canAccess(user, "people"),
+		isAdmin: isAdmin(user),
 		pagination: {
 			page: sessionPage.page,
 			totalItems: sessionPage.totalItems,
@@ -115,5 +123,33 @@ export const actions: Actions = {
 			return fail(400, { flagError: "Couldn't update the flag. Try again.", flagId: id });
 		}
 		return { flagUpdated: id };
+	},
+	// Final step (admins only): removes the session's tutoring credits (done by a server hook)
+	// and keeps a permanent record of the decision.
+	mark_fraud: async ({ locals, request }) => {
+		const user = locals.user as RecievedUser | undefined;
+		if (!user || !isAdmin(user)) {
+			error(403, "Only admins can mark a session fraudulent.");
+		}
+		const form = await request.formData();
+		const id = String(form.get("id") ?? "");
+		const reason = String(form.get("reason") ?? "")
+			.trim()
+			.slice(0, 500);
+		if (!id) return fail(400, { fraudError: "Missing session.", fraudId: id });
+		if (!reason)
+			return fail(400, { fraudError: "Say why this session is fraudulent.", fraudId: id });
+		try {
+			await locals.pb
+				.collection("tutoringSessions")
+				.update(id, { fraud: true, fraudReason: reason }, { requestKey: null });
+		} catch (updateError) {
+			console.error(updateError);
+			return fail(400, {
+				fraudError: "Couldn't mark the session fraudulent. Try again.",
+				fraudId: id
+			});
+		}
+		return { fraudMarked: id };
 	}
 };

@@ -1,5 +1,5 @@
 import { error } from "@sveltejs/kit";
-import { canAccess } from "$lib/adminAccess";
+import { canAccess, isAdmin } from "$lib/adminAccess";
 import type {
 	ExpandedTutoringSession,
 	RecievedCredit,
@@ -30,7 +30,7 @@ export const load = (async ({ locals, params }) => {
 
 	const [people, messages, credits] = await Promise.all([
 		locals.pb.collection("publicUsers").getFullList({
-			filter: [session.tutor, session.tutee, session.flaggedBy]
+			filter: [session.tutor, session.tutee, session.flaggedBy, session.fraudBy]
 				.filter(Boolean)
 				.map((id) => `id="${id}"`)
 				.join(" || "),
@@ -66,13 +66,17 @@ export const load = (async ({ locals, params }) => {
 			body: message.body,
 			sentAt: message.sentAt || message.created
 		})),
+		fraudByName: session.fraudBy ? (person(session.fraudBy)?.name ?? "") : "",
 		flaggedByName: session.flaggedBy ? (person(session.flaggedBy)?.name ?? "") : "",
 		creditedAmount: credits.reduce((sum, credit) => sum + credit.credits, 0),
-		canViewPeople: canAccess(user, "people")
+		canViewPeople: canAccess(user, "people"),
+		isAdmin: isAdmin(user)
 	};
 }) satisfies PageServerLoad;
 
 export const actions: Actions = {
 	set_flag: (event) =>
-		reviewActions.set_flag(event as unknown as Parameters<typeof reviewActions.set_flag>[0])
+		reviewActions.set_flag(event as unknown as Parameters<typeof reviewActions.set_flag>[0]),
+	mark_fraud: (event) =>
+		reviewActions.mark_fraud(event as unknown as Parameters<typeof reviewActions.mark_fraud>[0])
 };

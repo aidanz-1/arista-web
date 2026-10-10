@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { flagSource } from "$lib/flagSource";
+	import FraudReview from "$lib/components/FraudReview.svelte";
 	import type { PageData } from "./$types";
 	import AdminSubnav from "$lib/components/AdminSubnav.svelte";
 
@@ -64,6 +65,7 @@
 			<select name="review" value={data.filters.review}>
 				<option value="all">All sessions</option>
 				<option value="warnings">Flagged</option>
+				<option value="fraud">Fraudulent</option>
 				<option value="awaiting-proof">Waiting for proof</option>
 				<option value="proofs">Proof uploaded</option>
 			</select>
@@ -119,7 +121,9 @@
 							</div>
 							<div class="sessions__badges">
 								<a class="btn btn-sm" href="/admin/tutoring/{session.id}">Details and chat</a>
-								{#if session.durationWarning}<span class="badge badge--danger">Flagged</span>{/if}
+								{#if session.fraud}<span class="badge badge--danger">Fraudulent</span>
+								{:else if session.durationWarning}<span class="badge badge--danger">Flagged</span
+									>{/if}
 								{#if session.isComplete}
 									<span class="badge badge--success">Complete</span>
 								{:else if session.tuteeMarkedComplete}
@@ -168,23 +172,35 @@
 								</dd>
 							</div>
 						</dl>
-						<form method="POST" action="?/set_flag" use:enhance class="flag">
-							<input type="hidden" name="id" value={session.id} />
-							{#if session.durationWarning}
-								<input type="hidden" name="flagged" value="false" />
-								<button type="submit" class="btn btn-sm">Clear flag</button>
-							{:else}
-								<input type="hidden" name="flagged" value="true" />
-								<label class="flag__reason">
-									<span class="sr-only">Reason for flagging</span>
-									<input name="reason" placeholder="Reason to flag this session" maxlength="256" />
-								</label>
-								<button type="submit" class="btn btn-sm">Flag for review</button>
-							{/if}
-							{#if flagResult.flagId === session.id && flagResult.flagError}
-								<span class="field-error">{flagResult.flagError}</span>
-							{/if}
-						</form>
+						{#if !session.fraud}
+							<form method="POST" action="?/set_flag" use:enhance class="flag">
+								<input type="hidden" name="id" value={session.id} />
+								{#if session.durationWarning}
+									<input type="hidden" name="flagged" value="false" />
+									<button type="submit" class="btn btn-sm">Clear flag</button>
+								{:else}
+									<input type="hidden" name="flagged" value="true" />
+									<label class="flag__reason">
+										<span class="sr-only">Reason for flagging</span>
+										<input
+											name="reason"
+											placeholder="Reason to flag this session"
+											maxlength="256"
+										/>
+									</label>
+									<button type="submit" class="btn btn-sm">Flag for review</button>
+								{/if}
+								{#if flagResult.flagId === session.id && flagResult.flagError}
+									<span class="field-error">{flagResult.flagError}</span>
+								{/if}
+							</form>
+						{/if}
+						<FraudReview
+							canMark={data.isAdmin}
+							{session}
+							fraudByName={session.fraud_by_name}
+							tutorName={session.tutor_name}
+						/>
 					</li>
 				{/each}
 			</ul>
