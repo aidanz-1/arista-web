@@ -151,7 +151,7 @@
 				<p>Rankings show up as soon as the first credits are recorded.</p>
 			</div>
 		{:else}
-			<ol class="podium" aria-label="Top three">
+			<ol class="podium podium--{podium.length}" aria-label="Top three">
 				{#each podium as step, position (step.rank)}
 					<li class="podium__place podium__place--{position + 1}" style:--order={position}>
 						<div class="podium__person">
@@ -259,6 +259,22 @@
 		margin: 1rem auto 0;
 		padding: 0;
 		list-style: none;
+	}
+	/* Fewer than three steps (a tie took them): drop the empty columns so the
+	   podium stays centered. */
+	.podium--2 {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		max-width: 31rem;
+	}
+	.podium--1 {
+		grid-template-columns: minmax(0, 1fr);
+		max-width: 16rem;
+	}
+	.podium--2 .podium__place--1 {
+		grid-column: 2;
+	}
+	.podium--1 .podium__place--1 {
+		grid-column: 1;
 	}
 	.podium__place {
 		display: grid;
