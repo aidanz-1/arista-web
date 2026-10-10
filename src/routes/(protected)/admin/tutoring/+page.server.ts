@@ -151,5 +151,23 @@ export const actions: Actions = {
 			});
 		}
 		return { fraudMarked: id };
+	},
+	// Admins only: clears the fraud mark and gives the removed credits back.
+	undo_fraud: async ({ locals, request }) => {
+		const user = locals.user as RecievedUser | undefined;
+		if (!user || !isAdmin(user)) {
+			error(403, "Only admins can undo a fraud mark.");
+		}
+		const id = String((await request.formData()).get("id") ?? "");
+		if (!id) return fail(400, { fraudError: "Missing session.", fraudId: id });
+		try {
+			await locals.pb
+				.collection("tutoringSessions")
+				.update(id, { fraud: false }, { requestKey: null });
+		} catch (updateError) {
+			console.error(updateError);
+			return fail(400, { fraudError: "Couldn't undo the fraud mark. Try again.", fraudId: id });
+		}
+		return { fraudUndone: id };
 	}
 };

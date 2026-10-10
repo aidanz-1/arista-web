@@ -37,6 +37,29 @@
 				: `${tutorName} hadn't been credited for this session, so no credits were removed.`}
 			This session can't earn credit again.
 		</p>
+		{#if canMark}
+			<form
+				method="POST"
+				action="?/undo_fraud"
+				class="fraud__undo"
+				use:enhance={({ cancel }) => {
+					if (
+						!confirm(
+							removed > 0
+								? `Undo the fraud mark? ${tutorName} gets ${removed} tutoring credit${removed === 1 ? "" : "s"} back.`
+								: "Undo the fraud mark?"
+						)
+					)
+						cancel();
+				}}
+			>
+				<input type="hidden" name="id" value={session.id} />
+				<button type="submit" class="btn btn-sm">Undo fraud mark</button>
+				{#if result.fraudId === session.id && result.fraudError}
+					<span class="field-error">{result.fraudError}</span>
+				{/if}
+			</form>
+		{/if}
 	</div>
 {:else if canMark && session.durationWarning}
 	<details class="fraud">
@@ -87,6 +110,9 @@
 	}
 	.fraud--marked p {
 		margin: 0.3rem 0 0;
+	}
+	.fraud__undo {
+		margin-top: 0.6rem;
 	}
 	.fraud__credits {
 		color: var(--muted);

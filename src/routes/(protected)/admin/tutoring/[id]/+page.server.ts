@@ -78,5 +78,7 @@ export const actions: Actions = {
 	set_flag: (event) =>
 		reviewActions.set_flag(event as unknown as Parameters<typeof reviewActions.set_flag>[0]),
 	mark_fraud: (event) =>
-		reviewActions.mark_fraud(event as unknown as Parameters<typeof reviewActions.mark_fraud>[0])
+		reviewActions.mark_fraud(event as unknown as Parameters<typeof reviewActions.mark_fraud>[0]),
+	undo_fraud: (event) =>
+		reviewActions.undo_fraud(event as unknown as Parameters<typeof reviewActions.undo_fraud>[0])
 };
